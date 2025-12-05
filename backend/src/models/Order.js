@@ -25,6 +25,12 @@ class Order {
     this.usuario = data.usuario || null;
     this.direccionEnvio = data.direccion_envio || null;
     this.items = data.items || [];
+    
+    // Campos para verificar condiciones de en_proceso
+    this.tercero_id = data.tercero_id || null;
+    this.tns_kardex_id = data.tns_kardex_id || null;
+    this.montado_carro = data.montado_carro || 0;
+    this.entrega = data.entrega || null;
   }
 
   // Crear pedido desde carrito
@@ -210,9 +216,23 @@ class Order {
   // Buscar pedido por ID
   static async findById(id) {
     const sql = `
-      SELECT o.*, 
-             u.email as usuario_email, u.nombre_completo as usuario_nombre,
-             de.nombre_destinatario, de.telefono, de.direccion, de.ciudad, de.departamento
+      SELECT 
+        o.*, 
+        u.email AS usuario_email, 
+        u.nombre_completo AS usuario_nombre,
+        u.tipo_identificacion AS usuario_tipo_identificacion,
+        u.numero_identificacion AS usuario_numero_identificacion,
+        de.id AS direccion_id, 
+        de.nombre_destinatario, 
+        de.telefono, 
+        de.direccion, 
+        de.ciudad, 
+        de.departamento,
+        de.codigo_postal, 
+        de.pais,
+        (SELECT e.id FROM entregas e WHERE e.orden_id = o.id AND e.estado NOT IN ('cancelada', 'fallida', 'entregada') ORDER BY e.fecha_creacion DESC LIMIT 1) as entrega_id,
+        (SELECT e.repartidor_id FROM entregas e WHERE e.orden_id = o.id AND e.estado NOT IN ('cancelada', 'fallida', 'entregada') ORDER BY e.fecha_creacion DESC LIMIT 1) as entrega_repartidor_id,
+        (SELECT e.estado FROM entregas e WHERE e.orden_id = o.id AND e.estado NOT IN ('cancelada', 'fallida', 'entregada') ORDER BY e.fecha_creacion DESC LIMIT 1) as entrega_estado
       FROM ordenes o
       LEFT JOIN usuarios u ON o.usuario_id = u.id
       LEFT JOIN direcciones_envio de ON o.direccion_envio_id = de.id
@@ -220,27 +240,42 @@ class Order {
     `;
     
     const orders = await query(sql, [id]);
+    
     if (orders.length === 0) return null;
-
+    
     const orderData = orders[0];
     const items = await this.getOrderItems(id);
+  
+    const direccionEnvio = orderData.direccion_id ? {
+      id: orderData.direccion_id,
+      nombreDestinatario: orderData.nombre_destinatario,
+      telefono: orderData.telefono,
+      direccion: orderData.direccion,
+      ciudad: orderData.ciudad,
+      departamento: orderData.departamento,
+      codigoPostal: orderData.codigo_postal,
+      pais: orderData.pais
+    } : null;
 
     return new Order({
       ...orderData,
       usuario: {
         email: orderData.usuario_email,
-        nombreCompleto: orderData.usuario_nombre
+        nombreCompleto: orderData.usuario_nombre,
+        tipoIdentificacion: orderData.usuario_tipo_identificacion,
+        numeroIdentificacion: orderData.usuario_numero_identificacion
       },
-      direccionEnvio: orderData.nombre_destinatario ? {
-        nombreDestinatario: orderData.nombre_destinatario,
-        telefono: orderData.telefono,
-        direccion: orderData.direccion,
-        ciudad: orderData.ciudad,
-        departamento: orderData.departamento
-      } : null,
-      items
+      direccion_envio: direccionEnvio,
+      items,
+      // Incluir información de entrega si existe
+      entrega: orderData.entrega_id ? {
+        id: orderData.entrega_id,
+        repartidor_id: orderData.entrega_repartidor_id,
+        estado: orderData.entrega_estado
+      } : null
     });
   }
+  
 
   // Buscar pedidos por usuario
   static async findByUserId(userId, options = {}) {
@@ -249,7 +284,7 @@ class Order {
     let sql = `
       SELECT o.*, 
              u.email as usuario_email, u.nombre_completo as usuario_nombre,
-             de.nombre_destinatario, de.telefono, de.direccion, de.ciudad, de.departamento
+             de.id as direccion_id, de.nombre_destinatario, de.telefono, de.direccion, de.ciudad, de.departamento, de.codigo_postal, de.pais
       FROM ordenes o
       LEFT JOIN usuarios u ON o.usuario_id = u.id
       LEFT JOIN direcciones_envio de ON o.direccion_envio_id = de.id
@@ -276,12 +311,15 @@ class Order {
           email: orderData.usuario_email,
           nombreCompleto: orderData.usuario_nombre
         },
-        direccionEnvio: orderData.nombre_destinatario ? {
+        direccionEnvio: orderData.direccion_id ? {
+          id: orderData.direccion_id,
           nombreDestinatario: orderData.nombre_destinatario,
           telefono: orderData.telefono,
           direccion: orderData.direccion,
           ciudad: orderData.ciudad,
-          departamento: orderData.departamento
+          departamento: orderData.departamento,
+          codigoPostal: orderData.codigo_postal,
+          pais: orderData.pais
         } : null,
         items
       });
@@ -294,7 +332,9 @@ class Order {
   static async getOrderItems(orderId) {
     const sql = `
       SELECT io.*, 
-             p.nombre as producto_nombre, p.descripcion as producto_descripcion,
+             p.nombre as producto_nombre,
+             p.descripcion as producto_descripcion,
+             p.sku as producto_sku,
              (SELECT url_imagen FROM imagenes_producto WHERE producto_id = p.id ORDER BY orden ASC LIMIT 1) as imagen_url
       FROM items_orden io
       JOIN productos p ON io.producto_id = p.id
@@ -308,6 +348,7 @@ class Order {
       productId: item.producto_id,
       productName: item.producto_nombre,
       productDescription: item.producto_descripcion,
+      productSku: item.producto_sku,
       cantidad: item.cantidad, // Cambiar quantity por cantidad para consistencia
       precioUnitario: parseFloat(item.precio_unitario), // Cambiar unitPrice por precioUnitario
       subtotal: parseFloat(item.subtotal),
@@ -338,12 +379,18 @@ class Order {
 
   // Cancelar pedido
   async cancel(reason = null) {
-    if (this.estado === 'entregada') {
-      throw new Error('No se puede cancelar un pedido ya entregado');
-    }
-    
-    if (this.estado === 'cancelada') {
-      throw new Error('El pedido ya está cancelado');
+    // Solo se puede cancelar si el pedido está en estado 'pendiente'
+    if (this.estado !== 'pendiente') {
+      if (this.estado === 'cancelada') {
+        throw new Error('El pedido ya está cancelado');
+      }
+      
+      if (this.estado === 'entregada') {
+        throw new Error('No se puede cancelar un pedido ya entregado');
+      }
+      
+      // Para cualquier otro estado (confirmada, en_proceso, enviada, etc.)
+      throw new Error('Solo se pueden cancelar pedidos que están en estado pendiente');
     }
 
     const sql = `
@@ -411,7 +458,12 @@ class Order {
       fechaEntregaReal: this.fechaEntregaReal,
       usuario: this.usuario,
       direccionEnvio: this.direccionEnvio,
-      items: this.items
+      items: this.items,
+      // Campos necesarios para verificar condiciones de en_proceso
+      tercero_id: this.tercero_id,
+      tns_kardex_id: this.tns_kardex_id,
+      montado_carro: this.montado_carro,
+      entrega: this.entrega
     };
   }
 
@@ -427,7 +479,12 @@ class Order {
       fechaActualizacion: this.fechaActualizacion,
       itemsCount: this.items.length,
       metodoPago: this.metodoPago,
-      usuario: this.usuario // Incluir información del usuario
+      usuario: this.usuario, // Incluir información del usuario
+      // Campos necesarios para verificar condiciones de en_proceso
+      tercero_id: this.tercero_id,
+      tns_kardex_id: this.tns_kardex_id,
+      montado_carro: this.montado_carro,
+      entrega: this.entrega
     };
   }
 }

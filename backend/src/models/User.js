@@ -9,6 +9,8 @@ class User {
     this.nombreCompleto = data.nombre_completo;
     this.telefono = data.telefono;
     this.direccion = data.direccion;
+    this.tipoIdentificacion = data.tipo_identificacion;
+    this.numeroIdentificacion = data.numero_identificacion;
     this.activo = data.activo;
     this.rol = data.rol;
     this.emailVerificado = data.email_verificado;
@@ -25,6 +27,8 @@ class User {
       password,
       telefono,
       direccion,
+      tipo_identificacion,
+      numero_identificacion,
       rol = 'cliente'
     } = userData;
 
@@ -34,8 +38,9 @@ class User {
     const sql = `
       INSERT INTO usuarios (
         id, email, nombre_completo, contrasena, telefono, 
-        direccion, rol, activo, email_verificado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        direccion, tipo_identificacion, numero_identificacion, 
+        rol, activo, email_verificado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     await query(sql, [
@@ -45,6 +50,8 @@ class User {
       hashedPassword,
       telefono || null,
       direccion || null,
+      tipo_identificacion || null,
+      numero_identificacion || null,
       rol,
       true,
       false
@@ -69,14 +76,33 @@ class User {
 
   // Verificar contraseña
   async verifyPassword(password) {
-    const sql = 'SELECT contrasena FROM usuarios WHERE id = ?';
-    const users = await query(sql, [this.id]);
-    
-    if (users.length === 0) {
+    try {
+      if (!password || typeof password !== 'string') {
+        console.log('⚠️ [verifyPassword] Contraseña inválida o no proporcionada');
+        return false;
+      }
+
+      const sql = 'SELECT contrasena FROM usuarios WHERE id = ?';
+      const users = await query(sql, [this.id]);
+      
+      if (users.length === 0) {
+        console.log('⚠️ [verifyPassword] Usuario no encontrado en BD');
+        return false;
+      }
+
+      const hashedPassword = users[0].contrasena;
+      
+      if (!hashedPassword) {
+        console.log('⚠️ [verifyPassword] Usuario no tiene contraseña almacenada');
+        return false;
+      }
+
+      const isValid = await bcrypt.compare(password, hashedPassword);
+      return isValid;
+    } catch (error) {
+      console.error('❌ [verifyPassword] Error al verificar contraseña:', error);
       return false;
     }
-
-    return await bcrypt.compare(password, users[0].contrasena);
   }
 
   // Actualizar último acceso
@@ -87,7 +113,7 @@ class User {
 
   // Actualizar perfil
   async updateProfile(updateData) {
-    const allowedFields = ['nombre_completo', 'telefono', 'direccion'];
+    const allowedFields = ['nombre_completo', 'telefono', 'direccion', 'tipo_identificacion', 'numero_identificacion'];
     const updates = [];
     const values = [];
 
@@ -192,9 +218,13 @@ class User {
       nombreCompleto: this.nombreCompleto,
       telefono: this.telefono,
       direccion: this.direccion,
+      tipoIdentificacion: this.tipoIdentificacion,
+      numeroIdentificacion: this.numeroIdentificacion,
       rol: this.rol,
+      activo: this.activo,
       emailVerificado: this.emailVerificado,
       fechaCreacion: this.fechaCreacion,
+      fechaActualizacion: this.fechaActualizacion,
       ultimoAcceso: this.ultimoAcceso
     };
   }

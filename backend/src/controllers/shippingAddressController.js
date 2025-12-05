@@ -1,5 +1,33 @@
 const { query } = require('../config/database');
 
+/**
+ * Normalizar ciudad para búsqueda (remover acentos)
+ * normalize("NFD") separa los caracteres base de sus acentos (por ejemplo, "ú" → "u" + "´")
+ * replace(/[\u0300-\u036f]/g, "") elimina todos esos signos diacríticos (tildes, diéresis, etc.)
+ * Funciona también con letras como "Ñ" → no se elimina, porque no es un acento, es una letra propia
+ */
+const normalizeCity = (city) => {
+  if (!city) return '';
+  return city
+    .normalize("NFD")  // Separar caracteres base de acentos
+    .replace(/[\u0300-\u036f]/g, "")  // Eliminar signos diacríticos
+    .toUpperCase()
+    .trim();
+};
+
+/**
+ * Normalizar ciudad para almacenamiento (mantener acentos pero normalizar formato)
+ */
+const normalizeCityForStorage = (city) => {
+  if (!city) return '';
+  return city
+    .trim()
+    .replace(/\s+/g, ' ')  // Normalizar espacios múltiples
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 class ShippingAddressController {
   // Obtener direcciones del usuario autenticado
   static async getUserAddresses(req, res) {
@@ -161,6 +189,17 @@ class ShippingAddressController {
         esPrincipal = false
       } = req.body;
 
+      // Normalizar ciudad para almacenamiento
+      const ciudadNormalizada = normalizeCityForStorage(ciudad);
+      const departamentoNormalizado = normalizeCityForStorage(departamento);
+      
+      console.log('🏙️ Normalización de ciudad:', {
+        original: ciudad,
+        normalizada: ciudadNormalizada,
+        departamentoOriginal: departamento,
+        departamentoNormalizado: departamentoNormalizado
+      });
+
       // Si se marca como principal, quitar la marca de principal de otras direcciones
       if (esPrincipal) {
         const updatePrimarySql = `
@@ -183,8 +222,8 @@ class ShippingAddressController {
         nombreDestinatario,
         telefono || null,
         direccion,
-        ciudad,
-        departamento,
+        ciudadNormalizada,  // Usar ciudad normalizada
+        departamentoNormalizado,  // Usar departamento normalizado
         codigoPostal || null,
         pais,
         esPrincipal
@@ -273,11 +312,19 @@ class ShippingAddressController {
               break;
             case 'ciudad':
               updateFields.push('ciudad = ?');
-              updateValues.push(updateData[key]);
+              updateValues.push(normalizeCityForStorage(updateData[key]));
+              console.log('🏙️ Ciudad actualizada:', {
+                original: updateData[key],
+                normalizada: normalizeCityForStorage(updateData[key])
+              });
               break;
             case 'departamento':
               updateFields.push('departamento = ?');
-              updateValues.push(updateData[key]);
+              updateValues.push(normalizeCityForStorage(updateData[key]));
+              console.log('🏙️ Departamento actualizado:', {
+                original: updateData[key],
+                normalizada: normalizeCityForStorage(updateData[key])
+              });
               break;
             case 'codigoPostal':
               updateFields.push('codigo_postal = ?');
@@ -450,6 +497,27 @@ class ShippingAddressController {
 }
 
 module.exports = ShippingAddressController;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

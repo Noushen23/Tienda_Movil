@@ -54,13 +54,6 @@ class NotificationService {
         ...options
       };
 
-      console.log('📱 Enviando notificación push:', {
-        to: pushToken,
-        title: title,
-        body: body,
-        data: data
-      });
-
       // Enviar la notificación
       const chunks = this.expo.chunkPushNotifications([message]);
       const receipts = [];
@@ -77,8 +70,6 @@ class NotificationService {
 
       // Procesar los receipts para verificar el estado
       const results = await this.processReceipts(receipts);
-
-      console.log('✅ Notificación enviada exitosamente:', results);
 
       return {
         success: true,
@@ -134,8 +125,6 @@ class NotificationService {
         ...options
       }));
 
-      console.log(`📱 Enviando notificación masiva a ${validTokens.length} dispositivos`);
-
       // Enviar en chunks
       const chunks = this.expo.chunkPushNotifications(messages);
       const receipts = [];
@@ -154,8 +143,6 @@ class NotificationService {
       const results = await this.processReceipts(receipts);
       const successful = results.filter(r => r.status === 'ok').length;
       const failed = results.filter(r => r.status === 'error').length;
-
-      console.log(`✅ Notificación masiva enviada: ${successful} exitosas, ${failed} fallidas`);
 
       return {
         success: true,

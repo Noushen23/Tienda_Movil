@@ -5,6 +5,9 @@ import { AuthResponse, User } from '@/types'
 const TOKEN_KEY = 'admin_token'
 const USER_KEY = 'admin_user'
 
+// Roles permitidos para acceder a admin-web
+const ALLOWED_ROLES = ['admin', 'moderator', 'repartidor'] as const
+
 export const authService = {
   async login(email: string, password: string): Promise<{ user: User; token: string } | null> {
     try {
@@ -15,17 +18,27 @@ export const authService = {
         const userData = data.user || data // Backend puede devolver user en un objeto anidado
         const token = data.token
         
+        // Mapear datos del backend al formato del frontend
+        // El backend devuelve: nombreCompleto, activo, rol, fechaCreacion, fechaActualizacion
+        // El frontend espera: fullName, isActive, roles, createdAt, updatedAt
         const user: User = {
           id: userData.id,
           email: userData.email,
-          fullName: userData.nombreCompleto || userData.fullName, // Backend usa nombreCompleto
-          isActive: userData.activo || userData.isActive, // Backend usa activo
-          roles: userData.rol || userData.roles, // Backend usa rol
-          createdAt: userData.fechaCreacion || userData.createdAt || new Date().toISOString(),
-          updatedAt: userData.fechaActualizacion || userData.updatedAt || new Date().toISOString(),
+          fullName: userData.nombreCompleto ?? '',
+          isActive: userData.activo ?? true,
+          roles: userData.rol as User['roles'],
+          createdAt: userData.fechaCreacion ?? new Date().toISOString(),
+          updatedAt: userData.fechaActualizacion ?? new Date().toISOString(),
         }
         
         if (!user || !token) {
+          console.error('❌ Login: Usuario o token faltante')
+          return null
+        }
+
+        // Verificar que el usuario tenga un rol permitido antes de guardar
+        if (!ALLOWED_ROLES.includes(user.roles as typeof ALLOWED_ROLES[number])) {
+          console.error('❌ Login: Rol no permitido:', user.roles)
           return null
         }
 
@@ -36,13 +49,13 @@ export const authService = {
         // Configurar token en las peticiones de API
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
 
+        console.log('✅ Login exitoso:', { email: user.email, role: user.roles })
         return { user, token }
       }
+      console.error('❌ Login: Respuesta inválida del servidor')
       return null
     } catch (error: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Login error:', error.message)
-      }
+      console.error('❌ Login error:', error.response?.data || error.message)
       return null
     }
   },
@@ -53,20 +66,23 @@ export const authService = {
       const userStr = localStorage.getItem(USER_KEY)
 
       if (!token || !userStr) {
+        console.log('⚠️ checkStatus: No hay token o usuario en localStorage')
         return null
       }
 
       const user = JSON.parse(userStr) as User
 
-      // Verificar que el token no haya expirado y el usuario sea admin
-      if (user.roles === 'admin') {
-        // Configurar token en las peticiones de API
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-        
-        return { user, token }
+      // Verificar que el usuario tenga un rol permitido
+      if (!ALLOWED_ROLES.includes(user.roles as typeof ALLOWED_ROLES[number])) {
+        console.error('❌ checkStatus: Rol no permitido:', user.roles, 'Roles permitidos:', ALLOWED_ROLES)
+        return null
       }
 
-      return null
+      // Configurar token en las peticiones de API
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      
+      console.log('✅ checkStatus: Usuario autenticado:', { email: user.email, role: user.roles })
+      return { user, token }
     } catch (error) {
       console.error('❌ Error verificando estado:', error)
       return null
@@ -95,9 +111,37 @@ export const authService = {
 
     try {
       const user = JSON.parse(userStr) as User
-      return user.roles === 'admin'
+      return ALLOWED_ROLES.includes(user.roles as typeof ALLOWED_ROLES[number])
     } catch {
       return false
     }
+  },
+
+  getCurrentUser(): User | null {
+    try {
+      const userStr = localStorage.getItem(USER_KEY)
+      if (!userStr) {
+        return null
+      }
+      return JSON.parse(userStr) as User
+    } catch {
+      return null
+    }
+  },
+
+  hasRole(...roles: string[]): boolean {
+    const user = this.getCurrentUser()
+    if (!user) {
+      return false
+    }
+    return roles.includes(user.roles)
+  },
+
+  // isAdvisor(): boolean { // COMENTADO - MÓDULO DE ASESOR NO EN USO
+  //   return this.hasRole('admin', 'moderator')
+  // },
+
+  isRepartidor(): boolean {
+    return this.hasRole('repartidor', 'user')
   }
 }

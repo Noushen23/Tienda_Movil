@@ -1,6 +1,18 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG } from '../config/api.config';
-import * as SecureStore from 'expo-secure-store';
+
+// Detectar si estamos en web
+const isWeb = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+// Importar SecureStore solo si estamos en una plataforma nativa
+let SecureStore: any = null;
+if (!isWeb) {
+  try {
+    SecureStore = require('expo-secure-store');
+  } catch (error) {
+    console.warn('⚠️ expo-secure-store no disponible');
+  }
+}
 
 // Tipos para las respuestas de la API
 export interface ApiResponse<T = any> {
@@ -8,6 +20,7 @@ export interface ApiResponse<T = any> {
   message: string;
   data?: T;
   errors?: any[];
+  warning?: string; // Advertencia opcional (ej: duplicado detectado pero continuó)
 }
 
 export interface PaginationData {
@@ -74,8 +87,17 @@ class ApiClient {
   async setToken(token: string) {
     this.token = token;
     try {
-      await SecureStore.setItemAsync('auth_token', token);
-      console.log('✅ Token guardado en SecureStore');
+      if (isWeb) {
+        // Usar localStorage en web
+        localStorage.setItem('auth_token', token);
+        console.log('✅ Token guardado en localStorage');
+      } else if (SecureStore) {
+        // Usar SecureStore en móvil
+        await SecureStore.setItemAsync('auth_token', token);
+        console.log('✅ Token guardado en SecureStore');
+      } else {
+        console.warn('⚠️ No hay almacenamiento disponible para el token');
+      }
     } catch (error) {
       console.error('❌ Error al guardar token:', error);
     }
@@ -84,13 +106,28 @@ class ApiClient {
   // Obtener token guardado
   async loadToken() {
     try {
-      const token = await SecureStore.getItemAsync('auth_token');
-      if (token) {
-        this.token = token;
-        console.log('✅ Token cargado desde SecureStore');
-      } else {
-        console.log('⚠️  No hay token guardado en SecureStore');
+      let token: string | null = null;
+      
+      if (isWeb) {
+        // Usar localStorage en web
+        token = localStorage.getItem('auth_token');
+        if (token) {
+          this.token = token;
+          console.log('✅ Token cargado desde localStorage');
+        } else {
+          console.log('⚠️  No hay token guardado en localStorage');
+        }
+      } else if (SecureStore) {
+        // Usar SecureStore en móvil
+        token = await SecureStore.getItemAsync('auth_token');
+        if (token) {
+          this.token = token;
+          console.log('✅ Token cargado desde SecureStore');
+        } else {
+          console.log('⚠️  No hay token guardado en SecureStore');
+        }
       }
+      
       return token;
     } catch (error) {
       console.error('❌ Error al cargar token:', error);
@@ -102,9 +139,17 @@ class ApiClient {
   async clearToken() {
     this.token = null;
     try {
-      await SecureStore.deleteItemAsync('auth_token');
+      if (isWeb) {
+        // Usar localStorage en web
+        localStorage.removeItem('auth_token');
+        console.log('✅ Token eliminado de localStorage');
+      } else if (SecureStore) {
+        // Usar SecureStore en móvil
+        await SecureStore.deleteItemAsync('auth_token');
+        console.log('✅ Token eliminado de SecureStore');
+      }
     } catch (error) {
-      console.error('Error al eliminar token:', error);
+      console.error('❌ Error al eliminar token:', error);
     }
   }
 

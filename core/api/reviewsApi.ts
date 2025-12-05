@@ -80,6 +80,7 @@ export interface ReviewsResponse {
 
 export interface CanReviewResponse {
   canReview: boolean;
+  existingReviewId?: string | null;
   existingReview?: Review;
 }
 

@@ -16,6 +16,8 @@ export interface Favorite {
     stock: number;
     activo: boolean;
     destacado: boolean;
+    es_servicio?: boolean;
+    esServicio?: boolean;
     categoria_nombre?: string;
     imagenes: Array<{
       id: string;

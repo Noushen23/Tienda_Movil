@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { AdminProductsService, AdminProduct } from '@/lib/admin-products'
 import { AdminCategoriesService } from '@/lib/admin-categories'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CreateProductRequest } from '@/types'
+import { CreateProductRequest, ProductImage } from '@/types'
+import { ImageManager } from './ImageManager'
 
 interface ProductFormProps {
   product?: AdminProduct
@@ -29,11 +30,13 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     isFeatured: product?.isFeatured || false,
     tags: product?.tags || [],
     categoryId: product?.categoryId || '',
+    esServicio: product?.esServicio || product?.es_servicio || false,
   })
 
   // Actualizar formData cuando el producto cambie (para modo edición)
   React.useEffect(() => {
     if (product) {
+      
       const newFormData = {
         title: product.title || '',
         description: product.description || '',
@@ -44,7 +47,9 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         isFeatured: product.isFeatured || false,
         tags: product.tags || [],
         categoryId: product.categoryId || '',
+        esServicio: product.esServicio || product.es_servicio || false,
       }
+      
       setFormData(newFormData)
     }
   }, [product])
@@ -61,9 +66,22 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
     
+    const isCheckbox = type === 'checkbox'
+    const checked = isCheckbox ? (e.target as HTMLInputElement).checked : false
+    
+    // Si se marca "Es servicio", desmarcar automáticamente "Producto destacado"
+    if (name === 'esServicio' && checked) {
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked,
+        isFeatured: false // Desmarcar automáticamente producto destacado
+      }))
+      return
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? Number(value) : type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]: type === 'number' ? Number(value) : isCheckbox ? checked : value
     }))
   }
 
@@ -91,23 +109,22 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         // Actualizar el estado con las nuevas URLs de imagen
         const newImageUrls = response.data || []
         // Construir URLs completas para las nuevas imágenes
-        const baseUrl = 'http://192.168.3.104:3001'
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001'
         const fullImageUrls = newImageUrls.map((url: string) => 
           url.startsWith('http') ? url : `${baseUrl}${url}`
         )
         
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, ...fullImageUrls.map((url: string) => ({
-            id: `upload-${Date.now()}-${Math.random()}`,
+          images: [...prev.images, ...fullImageUrls.map((url: string, index: number) => ({
+            id: `upload-${Date.now()}-${index}`,
             url,
-            orden: prev.images.length,
+            orden: prev.images.length + index,
             alt_text: ''
           }))]
         }))
         
         // Mostrar mensaje de éxito
-        console.log(`✅ ${fullImageUrls.length} imagen(es) subida(s) exitosamente`)
         
         // Refrescar la lista de productos para mostrar los cambios
         queryClient.invalidateQueries({ queryKey: ['admin-products'] })
@@ -144,28 +161,22 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     }
   }
 
-  const removeImage = async (imageId: string, index: number) => {
+  const removeImage = async (_imageId: string, index: number) => {
     try {
       if (product) {
-        // Si estamos editando un producto, eliminar la imagen del servidor usando el ID
-        await AdminProductsService.deleteProductImage(product.id, imageId)
+        // Si estamos editando un producto, eliminar la imagen del servidor usando el índice
+        await AdminProductsService.deleteProductImage(product.id, index.toString())
         
         // Refrescar la lista de productos para mostrar los cambios
         queryClient.invalidateQueries({ queryKey: ['admin-products'] })
         queryClient.invalidateQueries({ queryKey: ['admin-product', product.id] })
-        
-        // Actualizar el estado local
-        setFormData(prev => ({
-          ...prev,
-          images: prev.images.filter((_, i) => i !== index)
-        }))
-      } else {
-        // Si estamos creando un nuevo producto, solo eliminar del estado local
-        setFormData(prev => ({
-          ...prev,
-          images: prev.images.filter((_, i) => i !== index)
-        }))
       }
+      
+      // Actualizar el estado local (tanto para edición como creación)
+      setFormData(prev => ({
+        ...prev,
+        images: prev.images.filter((_, i) => i !== index)
+      }))
     } catch (error) {
       console.error('Error removing image:', error)
       setError('Error al eliminar la imagen')
@@ -207,8 +218,21 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         slug,
         gender: 'Unisex' as any, // Valor por defecto
         sizes: [] as any, // Array vacío por defecto
-        images: formData.images.map(img => typeof img === 'string' ? img : img.url) // Convertir a strings para el backend
+        esServicio: formData.esServicio || false,
+        es_servicio: formData.esServicio || false, // Enviar ambos formatos para compatibilidad
+        // Mantener categoryId como está
+        // categoryId: formData.categoryId && formData.categoryId.trim() !== '' ? formData.categoryId : null,
+        // Para edición: solo enviar URLs de imágenes existentes (no base64)
+        // Para creación: enviar solo imágenes base64 (las nuevas)
+        images: product?.id 
+          ? formData.images
+              .filter(img => typeof img === 'object' && img.url && !img.url.startsWith('data:'))
+              .map(img => img.url!)
+          : formData.images
+              .filter(img => typeof img === 'object' && img.url && img.url.startsWith('data:'))
+              .map(img => img.url!)
       }
+
 
       if (product?.id) {
         await AdminProductsService.updateProduct(product.id, productData)
@@ -220,6 +244,11 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['top-products'] })
+      
+      // Invalidar también el producto específico para refrescar imágenes
+      if (product?.id) {
+        queryClient.invalidateQueries({ queryKey: ['admin-product', product.id] })
+      }
 
       if (onSuccess) {
         onSuccess()
@@ -278,7 +307,6 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
               </h3>
               <div className="mt-2 text-sm text-blue-700">
                 <p>Editando producto: <strong>{product.title}</strong></p>
-                <p>ID: {product.id}</p>
               </div>
             </div>
           </div>
@@ -359,7 +387,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
             </select>
           </div>
 
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-6 flex-wrap">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -384,6 +412,19 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
               />
               <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-900">
                 Producto destacado
+              </label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="esServicio"
+                id="esServicio"
+                checked={formData.esServicio || false}
+                onChange={handleInputChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="esServicio" className="ml-2 block text-sm text-gray-900">
+                Es servicio (aparecerá solo en Recargas)
               </label>
             </div>
           </div>
@@ -421,68 +462,12 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       {/* Imágenes */}
       <div className="bg-white shadow rounded-lg p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
-          Imágenes del Producto
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileInputChange}
-              accept="image/*"
-              multiple
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingImages}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {uploadingImages ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Subiendo...
-                </>
-              ) : (
-                'Subir Imágenes'
-              )}
-            </button>
-          </div>
-
-          {/* Preview de imágenes */}
-          {formData.images.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {formData.images.map((image, index) => {
-                // Manejar tanto la nueva estructura (ProductImage) como la anterior (string)
-                const imageUrl = typeof image === 'string' ? image : image.url;
-                const imageId = typeof image === 'string' ? `legacy-${index}` : image.id;
-                
-                return (
-                  <div key={imageId} className="relative">
-                    <img
-                      src={imageUrl}
-                      alt={`Preview ${index + 1}`}
-                      className="h-24 w-24 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(imageId, index)}
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs hover:bg-red-700"
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ImageManager
+          productId={product?.id || 'new'}
+          images={formData.images as ProductImage[]}
+          onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
+          maxImages={10}
+        />
       </div>
 
       {/* Botones de acción */}

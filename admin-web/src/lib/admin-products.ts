@@ -1,117 +1,130 @@
 import { api } from './api'
-import { Product, CreateProductRequest, ProductImage } from '@/types'
+import { Product, CreateProductRequest, ProductImage, Gender, Size } from '@/types'
 
 // Tipos básicos para el servicio de productos
-export interface AdminProduct extends Product {
+export interface AdminProduct extends Omit<Product, 'gender' | 'sizes'> {
+  gender?: Gender
+  sizes?: Size[]
   isFeatured?: boolean
+  fechaCreacion?: string
+  fechaActualizacion?: string
+}
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  pagination: {
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    itemsPerPage: number
+    hasNextPage: boolean
+    hasPrevPage: boolean
+  }
 }
 
 export interface ProductFilters {
   search?: string
   status?: string
+  categoriaId?: string
   category?: string
-  price?: string
-  stock?: string
+  stockFilter?: string
   page?: number
   limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+// Helper para validar datos de producto
+const validateProductData = (data: CreateProductRequest): void => {
+  if (!data.title || data.title.trim() === '') {
+    throw new Error('El nombre del producto es requerido')
+  }
+  
+  if (data.price !== undefined && (isNaN(data.price) || data.price < 0)) {
+    throw new Error('El precio debe ser un número positivo')
+  }
+  
+  if (data.stock !== undefined && (isNaN(data.stock) || data.stock < 0)) {
+    throw new Error('El stock debe ser un número positivo')
+  }
+  
+  if (data.images && !Array.isArray(data.images)) {
+    throw new Error('Las imágenes deben ser un array')
+  }
+}
+
+// Función helper para limpiar URLs duplicadas
+const cleanImageUrl = (url: string): string => {
+  if (!url) return url
+  
+  // Detectar si la URL tiene la base duplicada
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001'
+  const duplicatedPattern = `${baseUrl}${baseUrl}`
+  
+  if (url.startsWith(duplicatedPattern)) {
+    // Remover la duplicación
+    return url.replace(duplicatedPattern, baseUrl)
+  }
+  
+  return url
 }
 
 // Servicio básico de productos para el admin
 export const AdminProductsService = {
-  // Obtener todos los productos con filtros
-  getProducts: async (filters?: ProductFilters) => {
+  // Obtener todos los productos con filtros y paginación
+  getProducts: async (filters?: ProductFilters): Promise<PaginatedResponse<AdminProduct>> => {
     try {
-      console.log('🔍 AdminProductsService: Obteniendo productos...')
-      const response = await api.get('/products', { params: filters })
-      console.log('📋 AdminProductsService: Respuesta completa:', response.data)
+      // Limpiar parámetros undefined para que axios los envíe
+      const cleanParams = Object.fromEntries(
+        Object.entries(filters || {}).filter(([_, value]) => value !== undefined && value !== '')
+      )
       
-      // Mapear la respuesta del backend al formato esperado por el admin
-      if (response.data && response.data.success && response.data.data && response.data.data.products) {
-        console.log(`📊 AdminProductsService: Procesando ${response.data.data.products.length} productos`)
+      console.log('📡 AdminProductsService - Llamando API con filters:', cleanParams)
+      const response = await api.get('/products', { params: cleanParams })
+      console.log('📡 AdminProductsService - Respuesta recibida:', response.data)
+      
+      // El backend devuelve: { success: true, data: { products: [...], pagination: {...} } }
+      if (response.data?.success && response.data.data?.products) {
+        const products = response.data.data.products
+        const pagination = response.data.data.pagination
         
-        const mappedProducts = response.data.data.products.map((product: any) => {
-          // Función helper para parsear JSON de forma segura
-          const safeJsonParse = (str: any) => {
-            if (!str) return null;
-            try {
-              return typeof str === 'string' ? JSON.parse(str) : str;
-            } catch (e) {
-              console.warn('Error parseando JSON:', str);
-              return null;
-            }
-          };
-          
-          // Procesar imágenes del producto
-          let images: ProductImage[] = [];
-          if (Array.isArray(product.imagenes) && product.imagenes.length > 0) {
-            images = product.imagenes.map((img: any) => {
-              // Si es un objeto con la nueva estructura
-              if (typeof img === 'object' && img !== null) {
-                return {
-                  id: img.id || '',
-                  url: img.url || img.urlImagen || img.url_imagen || '',
-                  urlImagen: img.urlImagen || img.url_imagen || img.url || '',
-                  url_imagen: img.url_imagen || img.urlImagen || img.url || '',
-                  orden: img.orden || 0,
-                  alt_text: img.alt_text || ''
-                };
-              }
-              // Si es string (compatibilidad con estructura anterior)
-              if (typeof img === 'string') {
-                const baseUrl = 'http://192.168.3.104:3001';
-                const fullUrl = img.startsWith('http') ? img : `${baseUrl}${img}`;
-                return {
-                  id: `legacy-${Date.now()}-${Math.random()}`,
-                  url: fullUrl,
-                  urlImagen: fullUrl,
-                  url_imagen: fullUrl,
-                  orden: 0,
-                  alt_text: ''
-                };
-              }
-              return null;
-            }).filter((img): img is ProductImage => img !== null);
-          }
-          
-          return {
-            id: product.id,
-            title: product.nombre || product.title || 'Producto sin nombre', // Backend usa 'nombre'
-            description: product.descripcion || product.description || '',
-            price: parseFloat(product.precio) || 0,
-            priceOffer: product.precio_oferta ? parseFloat(product.precio_oferta) : null,
-            onOffer: !!product.precio_oferta,
-            stock: parseInt(product.stock) || 0,
-            minStock: parseInt(product.stockMinimo || product.stock_minimo) || 0,
-            isActive: !!product.activo,
-            isFeatured: !!product.destacado,
-            weight: product.peso ? parseFloat(product.peso) : null,
-            dimensions: safeJsonParse(product.dimensiones),
-            tags: Array.isArray(product.etiquetas) ? product.etiquetas : safeJsonParse(product.etiquetas) || [],
-            barcode: product.codigo_barras || null,
-            sku: product.sku || null,
-            slug: product.nombre ? product.nombre.toLowerCase().replace(/\s+/g, '-') : null,
-            images: images,
-            // Mapear categoría desde el backend (categoriaNombre)
-            category: product.categoriaNombre || product.categoria_nombre ? {
-              id: product.categoria_id || product.categoriaId,
-              name: product.categoriaNombre || product.categoria_nombre
-            } : (product.categoria ? {
-              id: product.categoria.id,
-              name: product.categoria.nombre || product.categoria.name
-            } : null),
-            categoryId: product.categoria_id || product.categoriaId,
-            createdAt: product.fecha_creacion || product.createdAt,
-            updatedAt: product.fecha_actualizacion || product.updatedAt,
-          };
-        });
-        
-        console.log(`✅ AdminProductsService: ${mappedProducts.length} productos mapeados exitosamente`)
-        console.log('📋 Ejemplo de producto mapeado:', mappedProducts[0])
+        // El backend ya devuelve los productos en el formato correcto
+        const mappedProducts = products.map((p: any) => ({
+          id: p.id,
+          title: p.nombre || p.title,
+          description: p.descripcion || '',
+          price: p.precio || 0,
+          priceOffer: p.precioOferta,
+          onOffer: Boolean(p.enOferta || p.precioOferta),
+          stock: p.stock || 0,
+          minStock: p.stockMinimo || 0,
+          isActive: p.isActive !== undefined ? p.isActive : p.activo,
+          isFeatured: Boolean(p.destacado),
+          sku: p.sku,
+          barcode: p.codigoBarras,
+          images: p.imagenes || [],
+          tags: Array.isArray(p.etiquetas) ? p.etiquetas : [],
+          category: p.categoriaNombre ? {
+            id: p.categoriaId || '',
+            name: p.categoriaNombre
+          } : null,
+          categoryId: p.categoriaId || null,  
+          esServicio: Boolean(p.esServicio || p.es_servicio),
+          es_servicio: Boolean(p.esServicio || p.es_servicio),
+          fechaCreacion: p.fechaCreacion || p.createdAt,
+          fechaActualizacion: p.fechaActualizacion || p.updatedAt
+        }))
         
         return {
-          success: true,
           data: mappedProducts,
-          message: response.data.message
+          pagination: {
+            currentPage: pagination?.page || filters?.page || 1,
+            totalPages: pagination?.totalPages || 0,
+            totalItems: pagination?.total || 0,
+            itemsPerPage: pagination?.limit || filters?.limit || 25,
+            hasNextPage: pagination?.hasNextPage || false,
+            hasPrevPage: pagination?.hasPrevPage || false
+          }
         }
       }
       
@@ -121,7 +134,17 @@ export const AdminProductsService = {
         hasDataData: !!response.data?.data,
         hasProducts: !!response.data?.data?.products
       })
-      return { success: false, data: [], message: 'Formato de respuesta inesperado' }
+      return {
+        data: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: 25,
+          hasNextPage: false,
+          hasPrevPage: false
+        }
+      }
     } catch (error) {
       console.error('❌ AdminProductsService: Error fetching products:', error)
       throw error
@@ -131,21 +154,18 @@ export const AdminProductsService = {
   // Obtener un producto por ID
   getProduct: async (id: string) => {
     try {
-      console.log('🔍 AdminProductsService: Obteniendo producto por ID:', id)
       const response = await api.get(`/products/${id}`)
-      console.log('📋 AdminProductsService: Respuesta completa:', response.data)
       
       // Mapear la respuesta del backend al formato esperado por el admin
       if (response.data && response.data.success && response.data.data && response.data.data.product) {
         const product = response.data.data.product;
-        console.log('📊 AdminProductsService: Procesando producto:', product)
         
         // Función helper para parsear JSON de forma segura
         const safeJsonParse = (str: any) => {
           if (!str) return null;
           try {
             return typeof str === 'string' ? JSON.parse(str) : str;
-          } catch (e) {
+          } catch {
             console.warn('Error parseando JSON:', str);
             return null;
           }
@@ -157,17 +177,36 @@ export const AdminProductsService = {
           images = product.imagenes.map((img: any) => {
             // Si es un objeto con la nueva estructura
             if (typeof img === 'object' && img !== null) {
+              // Obtener la URL de la imagen
+              let imageUrl = img.url || img.urlImagen || img.url_imagen || '';
+              
+              // Limpiar URL duplicada si existe
+              imageUrl = cleanImageUrl(imageUrl);
+              
+              // Si la URL no empieza con http, agregar la base URL
+              if (imageUrl && !imageUrl.startsWith('http')) {
+                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001';
+                imageUrl = `${baseUrl}${imageUrl}`;
+              }
+              
               return {
                 id: img.id || '',
-                url: img.url || '',
+                url: imageUrl,
+                urlImagen: imageUrl,
+                url_imagen: imageUrl,
                 orden: img.orden || 0,
-                alt_text: img.alt_text || ''
+                alt_text: img.alt_text || '',
+                esPrincipal: img.esPrincipal || img.es_principal || false
               };
             }
             // Si es string (compatibilidad con estructura anterior)
             if (typeof img === 'string') {
-              const baseUrl = 'http://192.168.3.104:3001';
-              const fullUrl = img.startsWith('http') ? img : `${baseUrl}${img}`;
+              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001';
+              let fullUrl = img.startsWith('http') ? img : `${baseUrl}${img}`;
+              
+              // Limpiar URL duplicada si existe
+              fullUrl = cleanImageUrl(fullUrl);
+              
               return {
                 id: `legacy-${Date.now()}-${Math.random()}`,
                 url: fullUrl,
@@ -176,7 +215,7 @@ export const AdminProductsService = {
               };
             }
             return null;
-          }).filter((img): img is ProductImage => img !== null);
+          }).filter((img: ProductImage | null): img is ProductImage => img !== null);
         }
         
         const mappedProduct = {
@@ -184,32 +223,47 @@ export const AdminProductsService = {
           title: product.nombre || product.title || 'Producto sin nombre', // Backend usa 'nombre'
           description: product.descripcion || product.description || '',
           price: parseFloat(product.precio) || 0,
-          priceOffer: product.precioOferta || product.precio_oferta ? parseFloat(product.precioOferta || product.precio_oferta) : null,
+          priceOffer: product.precioOferta || product.precio_oferta ? parseFloat(product.precioOferta || product.precio_oferta) : undefined,
           onOffer: !!(product.precioOferta || product.precio_oferta),
           stock: parseInt(product.stock) || 0,
           minStock: parseInt(product.stockMinimo || product.stock_minimo) || 0,
           isActive: !!product.activo,
           isFeatured: !!product.destacado,
-          weight: product.peso ? parseFloat(product.peso) : null,
+          weight: product.peso ? parseFloat(product.peso) : undefined,
           dimensions: safeJsonParse(product.dimensiones),
           tags: Array.isArray(product.etiquetas) ? product.etiquetas : safeJsonParse(product.etiquetas) || [],
-          barcode: product.codigo_barras || null,
-          sku: product.sku || null,
-          slug: product.nombre ? product.nombre.toLowerCase().replace(/\s+/g, '-') : null,
+          barcode: product.codigo_barras || undefined,
+          sku: product.sku || undefined,
+          slug: product.nombre ? product.nombre.toLowerCase().replace(/\s+/g, '-') : undefined,
           images: images,
+          esServicio: Boolean(product.esServicio || product.es_servicio),
+          es_servicio: Boolean(product.esServicio || product.es_servicio),
           category: product.categoria_nombre ? {
             id: product.categoria_id || product.categoriaId,
-            name: product.categoria_nombre
+            name: product.categoria_nombre,
+            slug: product.categoria_nombre ? product.categoria_nombre.toLowerCase().replace(/\s+/g, '-') : '',
+            isActive: true,
+            createdAt: product.fecha_creacion || product.createdAt || new Date().toISOString(),
+            updatedAt: product.fecha_actualizacion || product.updatedAt || new Date().toISOString()
           } : (product.categoria ? {
             id: product.categoria.id,
-            name: product.categoria.nombre || product.categoria.name
-          } : null),
-          categoryId: product.categoriaId || product.categoria_id || product.categoryId,
-          createdAt: product.fecha_creacion || product.createdAt,
-          updatedAt: product.fecha_actualizacion || product.updatedAt,
+            name: product.categoria.nombre || product.categoria.name,
+            slug: product.categoria.slug || (product.categoria.nombre || product.categoria.name).toLowerCase().replace(/\s+/g, '-'),
+            isActive: product.categoria.isActive !== undefined ? product.categoria.isActive : true,
+            createdAt: product.categoria.createdAt || product.fecha_creacion || product.createdAt || new Date().toISOString(),
+            updatedAt: product.categoria.updatedAt || product.fecha_actualizacion || product.updatedAt || new Date().toISOString()
+          } : undefined),
+          categoryId: product.categoria_id || product.categoriaId || undefined,
+          fechaCreacion: product.fecha_creacion || product.createdAt || product.fechaCreacion,
+          fechaActualizacion: product.fecha_actualizacion || product.updatedAt || product.fechaActualizacion,
+          // Propiedades requeridas por Product (heredadas por AdminProduct)
+          createdAt: product.createdAt || product.fecha_creacion || product.fechaCreacion || new Date().toISOString(),
+          updatedAt: product.updatedAt || product.fecha_actualizacion || product.fechaActualizacion || new Date().toISOString(),
+          // Propiedades opcionales de AdminProduct
+          gender: product.genero || product.gender || undefined,
+          sizes: Array.isArray(product.tallas) ? product.tallas : (product.sizes ? (Array.isArray(product.sizes) ? product.sizes : safeJsonParse(product.sizes)) : undefined)
         };
         
-        console.log('✅ AdminProductsService: Producto mapeado exitosamente:', mappedProduct)
         
         return {
           success: true,
@@ -231,60 +285,119 @@ export const AdminProductsService = {
     }
   },
 
+  // Verificar si un producto ya existe
+  checkProductExists: async (sku?: string | number, CodVinculacion?: string | number) => {
+    try {
+      const params = new URLSearchParams()
+      if (sku !== undefined) params.append('sku', String(sku))
+      if (CodVinculacion !== undefined) params.append('CodVinculacion', String(CodVinculacion))
+      
+      const response = await api.get(`/products/check-exists?${params.toString()}`)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ Error checking product exists:', error)
+      throw new Error('Error al verificar si el producto existe')
+    }
+  },
+
   // Crear un nuevo producto
   createProduct: async (data: CreateProductRequest) => {
     try {
+      
+      // Validar datos del producto
+      validateProductData(data)
+      
       // Mapear datos del frontend al formato del backend
       const backendData = {
-        nombre: data.title,
-        descripcion: data.description,
-        precio: data.price,
-        categoria_id: data.categoryId && data.categoryId !== '' ? data.categoryId : null,
+        nombre: data.title.trim(),
+        descripcion: data.description || '',
+        precio: data.price || 0,
+        categoria_id: data.categoryId,
         stock: data.stock || 0,
         stock_minimo: 5,
         activo: data.isActive !== undefined ? data.isActive : true,
         destacado: data.isFeatured || false,
+        esServicio: data.esServicio || false,
+        es_servicio: data.esServicio || data.es_servicio || false,
+        sku: data.sku || null, // ← AQUÍ se mapea el SKU
+        CodVinculacion: (data as any).CodVinculacion || null, // ← AQUÍ se mapea el CodVinculacion
         etiquetas: data.tags && data.tags.length > 0 ? data.tags : [],
         imagenes: data.images || []
       };
       
+      
       const response = await api.post('/products', backendData)
+      
       return response.data
-    } catch (error) {
-      console.error('Error creating product:', error)
-      throw error
+    } catch (error: any) {
+      console.error('❌ Error creating product:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al crear el producto')
+      }
     }
   },
 
   // Actualizar un producto
   updateProduct: async (id: string, data: CreateProductRequest) => {
     try {
-      console.log('📝 AdminProductsService: Actualizando producto:', id)
-      console.log('📋 Datos a enviar:', data)
+      
+      // Validar que el ID existe
+      if (!id || typeof id !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      // Validar datos del producto
+      validateProductData(data)
       
       // Mapear datos del frontend al formato del backend
       const backendData = {
-        nombre: data.title,
-        descripcion: data.description,
-        precio: data.price,
-        categoria_id: data.categoryId || null,
+        nombre: data.title || '',
+        descripcion: data.description || '',
+        precio: data.price || 0,
+        categoria_id: data.categoryId,
         stock: data.stock || 0,
         stock_minimo: 5,
         activo: data.isActive !== undefined ? data.isActive : true,
         destacado: data.isFeatured || false,
-        etiquetas: data.tags && data.tags.length > 0 ? data.tags : []
-        // No incluimos imágenes aquí, se manejan por separado
+        esServicio: data.esServicio !== undefined ? data.esServicio : false,
+        es_servicio: data.esServicio !== undefined ? data.esServicio : (data.es_servicio !== undefined ? data.es_servicio : false),
+        CodVinculacion: (data as any).CodVinculacion || null, // ← AQUÍ se mapea el CodVinculacion
+        etiquetas: data.tags && data.tags.length > 0 ? data.tags : [],
+        // Incluir imágenes solo si están presentes y son strings (URLs)
+        // Si no hay imágenes nuevas, no enviar el campo para mantener las existentes
+        ...(data.images && Array.isArray(data.images) && data.images.length > 0 
+          ? { imagenes: data.images.filter(img => typeof img === 'string') }
+          : {})
       };
       
-      console.log('📤 Datos mapeados para backend:', backendData)
       
       const response = await api.put(`/products/${id}`, backendData)
-      console.log('✅ Producto actualizado:', response.data)
+      
+      // Invalidar cache para sincronización con móvil
+      try {
+        await api.post(`/products/invalidate-cache/${id}`)
+      } catch (cacheError) {
+        console.warn('⚠️ No se pudo invalidar cache:', cacheError)
+      }
       
       return response.data
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error updating product:', error)
-      throw error
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al actualizar el producto')
+      }
     }
   },
 
@@ -302,31 +415,173 @@ export const AdminProductsService = {
   // Subir imágenes de producto
   uploadProductImages: async (productId: string, files: FileList) => {
     try {
+      
+      // Validar que el ID existe
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      // Validar que hay archivos
+      if (!files || files.length === 0) {
+        throw new Error('No se proporcionaron archivos de imagen')
+      }
+      
       const formData = new FormData()
       Array.from(files).forEach(file => {
+        // Validar tipo de archivo
+        if (!file.type.startsWith('image/')) {
+          throw new Error(`El archivo ${file.name} no es una imagen válida`)
+        }
         formData.append('images', file)
       })
+      
+      console.log(`📤 Subiendo ${files.length} imagen(es)...`)
       
       const response = await api.post(`/products/${productId}/images`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       })
+      
       return response.data
-    } catch (error) {
-      console.error('Error uploading product images:', error)
-      throw error
+    } catch (error: any) {
+      console.error('❌ Error uploading product images:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al subir las imágenes')
+      }
     }
   },
 
   // Eliminar imagen de producto
-  deleteProductImage: async (productId: string, imageId: string) => {
+  deleteProductImage: async (productId: string, imageIndex: number) => {
     try {
-      const response = await api.delete(`/products/${productId}/images/${imageId}`)
+      
+      // Validar parámetros
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      if (typeof imageIndex !== 'number' || imageIndex < 0) {
+        throw new Error('Índice de imagen inválido')
+      }
+      
+      const response = await api.delete(`/products/${productId}/images/${imageIndex}`)
+      
       return response.data
-    } catch (error) {
-      console.error('Error deleting product image:', error)
-      throw error
+    } catch (error: any) {
+      console.error('❌ Error deleting product image:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al eliminar la imagen')
+      }
+    }
+  },
+
+  // Actualizar metadatos de imagen
+  updateImageMetadata: async (productId: string, imageId: string, metadata: {
+    alt_text?: string
+    orden?: number
+    esPrincipal?: boolean
+  }) => {
+    try {
+      
+      // Validar parámetros
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      if (!imageId || typeof imageId !== 'string') {
+        throw new Error('ID de imagen inválido')
+      }
+      
+      const response = await api.patch(`/products/${productId}/images/${imageId}`, metadata)
+      
+      return response.data
+    } catch (error: any) {
+      console.error('❌ Error updating image metadata:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al actualizar metadatos de imagen')
+      }
+    }
+  },
+
+  // Reordenar imágenes
+  reorderImages: async (productId: string, imageIds: string[]) => {
+    try {
+      
+      // Validar parámetros
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      if (!Array.isArray(imageIds)) {
+        throw new Error('Lista de IDs de imagen inválida')
+      }
+      
+      const response = await api.patch(`/products/${productId}/images/reorder`, {
+        imageIds
+      })
+      
+      return response.data
+    } catch (error: any) {
+      console.error('❌ Error reordering images:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al reordenar imágenes')
+      }
+    }
+  },
+
+  // Marcar imagen como principal
+  setMainImage: async (productId: string, imageId: string) => {
+    try {
+      console.log('⭐ AdminProductsService: Marcando imagen como principal:', imageId, 'del producto:', productId)
+      
+      // Validar parámetros
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('ID de producto inválido')
+      }
+      
+      if (!imageId || typeof imageId !== 'string') {
+        throw new Error('ID de imagen inválido')
+      }
+      
+      const response = await api.patch(`/products/${productId}/images/${imageId}/main`, {})
+      
+      return response.data
+    } catch (error: any) {
+      console.error('❌ Error setting main image:', error)
+      
+      // Mejorar el manejo de errores
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message)
+      } else if (error.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Error desconocido al marcar imagen como principal')
+      }
     }
   },
 

@@ -79,8 +79,12 @@ export const useUserOrder = (orderId: string) => {
       return response.data;
     },
     enabled: !!orderId,
-    staleTime: CACHE_TIMES.TEN_MINUTES,
+    staleTime: 0, // Siempre considerar los datos como obsoletos para obtener el estado más reciente
+    cacheTime: 1000 * 60 * 5, // Mantener en cache por 5 minutos pero siempre refetchear
     retry: 1,
+    refetchOnWindowFocus: true, // Refetch cuando la ventana vuelve a estar en foco
+    refetchOnMount: true, // Refetch al montar el componente - importante para ver estado actualizado
+    refetchOnReconnect: true, // Refetch al reconectar
   });
 };
 
@@ -251,25 +255,71 @@ export const useUpdateOrderStatus = () => {
       
       return response.data;
     },
-    onSuccess: (orderData) => {
+    onSuccess: (orderData, variables) => {
       if (orderData?.numeroOrden && orderData?.estado) {
         console.log('✅ Estado del pedido actualizado:', orderData.numeroOrden, '->', orderData.estado);
       }
       
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: [...ORDERS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: ORDER_STATS_QUERY_KEY });
+      // ACTUALIZACIÓN RÁPIDA: Actualizar inmediatamente el cache antes de invalidar
+      // Esto hace que la UI se actualice instantáneamente
       
-      // Actualizar el pedido específico en el cache
+      // 1. Actualizar el pedido específico en todas las posibles queries
       if (orderData?.id) {
+        // Actualizar en la query del pedido individual
         queryClient.setQueryData(
           [...ORDERS_QUERY_KEY, 'user', orderData.id], 
           orderData
         );
+        
+        // Actualizar en las listas de pedidos usando setQueryData con función de actualización
+        queryClient.setQueriesData(
+          { queryKey: [...ORDERS_QUERY_KEY, 'user'] },
+          (oldData: any) => {
+            if (!oldData) return oldData;
+            
+            // Si es una lista paginada (infinite query)
+            if (oldData.pages) {
+              return {
+                ...oldData,
+                pages: oldData.pages.map((page: any) => ({
+                  ...page,
+                  orders: page.orders.map((order: any) =>
+                    order.id === orderData.id ? orderData : order
+                  )
+                }))
+              };
+            }
+            
+            // Si es una lista simple
+            if (oldData.orders) {
+              return {
+                ...oldData,
+                orders: oldData.orders.map((order: any) =>
+                  order.id === orderData.id ? orderData : order
+                )
+              };
+            }
+            
+            return oldData;
+          }
+        );
+      }
+      
+      // 2. Invalidar queries relacionadas para refrescar desde el servidor (en segundo plano)
+      // Invalidar todas las queries de pedidos, incluyendo el pedido individual
+      queryClient.invalidateQueries({ queryKey: [...ORDERS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ORDER_STATS_QUERY_KEY });
+      
+      // Invalidar específicamente el pedido individual para forzar refetch
+      if (orderData?.id) {
+        queryClient.invalidateQueries({ 
+          queryKey: [...ORDERS_QUERY_KEY, 'user', orderData.id],
+          refetchType: 'active' // Refetchear inmediatamente si está activa
+        });
       }
       
       if (orderData?.numeroOrden && orderData?.estado) {
-        console.log(`🔄 Estado del pedido ${orderData.numeroOrden} actualizado a ${orderData.estado}!`);
+        console.log(`🔄 Estado del pedido ${orderData.numeroOrden} actualizado rápidamente a ${orderData.estado}!`);
       }
     },
     onError: (error) => {

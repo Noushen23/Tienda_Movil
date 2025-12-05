@@ -138,6 +138,9 @@ router.get('/', validatePagination, OrderController.getAllOrders);
 // Obtener estadísticas generales (admin)
 router.get('/stats', OrderController.getOrderStats);
 
+// Obtener pedido específico (admin) - debe ir antes de /:id/status
+router.get('/:id', validateOrderId, OrderController.getOrderById);
+
 // Actualizar estado de pedido (admin)
 router.put('/:id/status', validateUpdateOrderStatus, handleValidationErrors, OrderController.updateOrderStatus);
 

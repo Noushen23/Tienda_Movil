@@ -96,7 +96,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             activeOpacity={0.7}
           >
             <Ionicons 
-              name="pricetag-outline" 
+              name="checkbox-outline" 
               size={16} 
               color={selectedCategoryId === category.id ? 'white' : "#64748b"} 
             />
@@ -128,63 +128,79 @@ const styles = StyleSheet.create({
   container: {
     height: 50,
     backgroundColor: 'transparent',
-    borderBottomWidth: 3,
+    borderBottomWidth: 1,  // antes 3
     borderBottomColor: '#e2e8f0',
     shadowColor: 'transparent',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
-    marginBottom: 10,
-    marginTop: 10,
+    marginBottom: 0,   // 🔹 quita el espacio inferior
+    marginTop: 0,      // 🔹 quita el espacio superior
     borderRadius: 10,
     overflow: 'hidden',
     marginHorizontal: 10,
   },
+  
+
   scrollView: {
-    flex: 5,
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 16,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 4, // 🔹 reduce este valor (antes 8)
   },
+  
+
+  // 🌸 Estilo de chip de categoría
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 5,
-    marginRight: 4,
-    borderRadius: 25,
-    borderWidth: 0,
-    minHeight: 40,
-    backgroundColor: '#ffffff',
-    elevation: 2,
-    shadowColor: '#64748b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f9fafb',
+    minHeight: 38,
+
+    // Sombras sutiles estilo iOS / SHEIN
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
+
   selectedChip: {
     backgroundColor: '#3b82f6',
-    elevation: 4,
-    shadowOpacity: 0.2,
+    borderColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 6,
-    transform: [{ scale: 1.02 }],
+    elevation: 3,
+    transform: [{ scale: 1.03 }],
   },
+
   chipText: {
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 6,
-    maxWidth: 120,
+    letterSpacing: 0.3,
+    color: '#334155',
+    textTransform: 'capitalize',
   },
+
+  // 🌀 Estados de carga y error
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 15,
-    backgroundColor: 'transparent',
   },
   loadingText: {
     marginLeft: 8,
@@ -198,7 +214,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 15,
-    backgroundColor: 'transparent',
   },
   errorText: {
     marginLeft: 8,
@@ -206,12 +221,13 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontWeight: '500',
   },
+
+  // 🪶 Cuando no hay categorías
   emptyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
     paddingVertical: 10,
-    backgroundColor: 'transparent',
   },
   emptyText: {
     fontSize: 14,

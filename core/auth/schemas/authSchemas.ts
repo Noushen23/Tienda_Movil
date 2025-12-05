@@ -35,6 +35,20 @@ export const registerSchema = z.object({
       (val) => !val || val.length === 0 || /^\d{7,15}$/.test(val),
       'El teléfono debe tener entre 7 y 15 dígitos'
     ),
+  tipoIdentificacion: z
+    .enum(['CC', 'NIT', 'CE', 'TR'])
+    .optional(),
+  numeroIdentificacion: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || val.length === 0 || (val.length >= 5 && val.length <= 20),
+      'El número de identificación debe tener entre 5 y 20 caracteres'
+    )
+    .refine(
+      (val) => !val || val.length === 0 || /^[a-zA-Z0-9\-]+$/.test(val),
+      'El número de identificación solo puede contener letras, números y guiones'
+    ),
   password: z
     .string()
     .min(6, 'La contraseña debe tener al menos 6 caracteres')

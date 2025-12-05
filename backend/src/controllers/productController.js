@@ -11,10 +11,23 @@ class ProductController {
   // Obtener todos los productos
   static async getProducts(req, res) {
     try {
-      const { categoriaId, page = 1, limit = 20 } = req.query;
+      const { 
+        categoriaId, 
+        precioMin,
+        precioMax,
+        calificacionMin,
+        enOferta,
+        search,
+        stockFilter,
+        esServicio, // Nuevo filtro para servicios
+        es_servicio, // Alias alternativo
+        sortBy = 'recientes', // recientes, precio_asc, precio_desc, ventas, calificacion
+        page = 1, 
+        limit = 20 
+      } = req.query;
       
       // Construir query con filtros dinámicos
-      let whereConditions = ['p.activo = 1'];
+      let whereConditions = [];
       let queryParams = [];
       
       // Filtro por categoría
@@ -22,9 +35,106 @@ class ProductController {
         whereConditions.push('p.categoria_id = ?');
         queryParams.push(categoriaId);
       }
+
+      // Filtro por rango de precio
+      if (precioMin) {
+        whereConditions.push('p.precio >= ?');
+        queryParams.push(parseFloat(precioMin));
+      }
+      if (precioMax) {
+        whereConditions.push('p.precio <= ?');
+        queryParams.push(parseFloat(precioMax));
+      }
+
+      // Filtro por calificación mínima
+      if (calificacionMin) {
+        whereConditions.push('p.calificacion_promedio >= ?');
+        queryParams.push(parseFloat(calificacionMin));
+      }
+
+      // Filtro por productos en oferta
+      if (enOferta === 'true' || enOferta === '1') {
+        // Ser robustos: considerar columna calculada y condición por precios
+        whereConditions.push('(p.en_oferta = 1 OR (p.precio_oferta IS NOT NULL AND p.precio_oferta < p.precio))');
+      }
+
+      // Filtro por búsqueda de texto
+      if (search && search.trim()) {
+        console.log('🔍 Búsqueda recibida:', search.trim());
+        whereConditions.push('(p.nombre LIKE ? OR p.descripcion LIKE ? OR p.sku LIKE ? OR p.codigo_barras LIKE ? OR p.etiquetas LIKE ?)');
+        const searchTerm = `%${search.trim()}%`;
+        queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      }
       
-      const whereClause = whereConditions.join(' AND ');
+      // Filtro por estado de stock
+      if (stockFilter) {
+        switch (stockFilter) {
+          case 'in_stock':
+            whereConditions.push('p.stock > 0');
+            break;
+          case 'low_stock':
+            whereConditions.push('p.stock <= p.stock_minimo');
+            break;
+          case 'out_of_stock':
+            whereConditions.push('p.stock = 0');
+            break;
+        }
+      }
+
+      // Filtro por servicios (es_servicio)
+      if (esServicio !== undefined || es_servicio !== undefined) {
+        // Normalizar el valor: puede venir como string 'true'/'false', número 1/0, o boolean
+        const esServicioValue = esServicio !== undefined ? esServicio : es_servicio;
+        const isService = esServicioValue === 'true' || esServicioValue === '1' || esServicioValue === 1 || esServicioValue === true;
+        
+        if (isService) {
+          // Filtrar solo servicios: es_servicio = 1 O (es_servicio IS NULL Y tiene etiqueta servicio)
+          whereConditions.push('(p.es_servicio = 1 OR (p.es_servicio IS NULL AND p.etiquetas LIKE ?))');
+          queryParams.push('%"servicio"%');
+        } else {
+          // Excluir servicios: es_servicio = 0 O es_servicio IS NULL (pero sin etiqueta servicio)
+          whereConditions.push('(p.es_servicio = 0 OR (p.es_servicio IS NULL AND (p.etiquetas IS NULL OR p.etiquetas NOT LIKE ?)))');
+          queryParams.push('%"servicio"%');
+        }
+      }
+      
+      const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
       const offset = (parseInt(page) - 1) * parseInt(limit);
+
+      // Determinar ordenamiento
+      let orderBy = 'p.fecha_creacion DESC'; // Por defecto: más recientes
+      
+      switch (sortBy) {
+        case 'precio_asc':
+          orderBy = 'p.precio ASC';
+          break;
+        case 'precio_desc':
+          orderBy = 'p.precio DESC';
+          break;
+        case 'nombre':
+        case 'nombre_asc':
+          orderBy = 'p.nombre ASC';
+          break;
+        case 'nombre_desc':
+          orderBy = 'p.nombre DESC';
+          break;
+        case 'stock_asc':
+          orderBy = 'p.stock ASC';
+          break;
+        case 'stock_desc':
+          orderBy = 'p.stock DESC';
+          break;
+        case 'ventas':
+          orderBy = 'p.ventas_totales DESC, p.fecha_creacion DESC';
+          break;
+        case 'calificacion':
+          orderBy = 'p.calificacion_promedio DESC, p.total_resenas DESC';
+          break;
+        case 'recientes':
+        default:
+          orderBy = 'p.fecha_creacion DESC';
+          break;
+      }
       
       const productsQuery = `
         SELECT
@@ -33,6 +143,7 @@ class ProductController {
           p.descripcion,
           p.precio,
           p.precio_oferta,
+          p.en_oferta,
           p.categoria_id,
           p.stock,
           p.stock_minimo,
@@ -40,6 +151,10 @@ class ProductController {
           p.destacado,
           p.codigo_barras,
           p.sku,
+          p.ventas_totales,
+          p.calificacion_promedio,
+          p.total_resenas,
+          p.es_servicio,
           p.fecha_creacion,
           p.fecha_actualizacion,
           c.nombre as categoriaNombre,
@@ -58,7 +173,7 @@ class ProductController {
         FROM productos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
         WHERE ${whereClause}
-        ORDER BY p.fecha_creacion DESC
+        ORDER BY ${orderBy}
         LIMIT ? OFFSET ?
       `;
       
@@ -70,18 +185,62 @@ class ProductController {
         throw new Error(`products no es un array: ${typeof products}`);
       }
 
+      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      
       const formattedProducts = products.map(product => {
-        // Parsear imágenes desde GROUP_CONCAT
+        // Parsear imágenes desde GROUP_CONCAT con validación
         let imagenes = [];
         if (product.imagenes_raw) {
           try {
             const imagenesArray = JSON.parse(`[${product.imagenes_raw}]`);
-            imagenes = imagenesArray.map(img => ({
-              id: img.id,
-              urlImagen: `http://192.168.3.104:3001${img.url}`,
-              orden: img.orden,
-              es_principal: Boolean(img.es_principal)
-            }));
+            imagenes = imagenesArray.map(img => {
+              // Validar y limpiar URL de imagen
+              let imageUrl = img.url;
+              
+              // Si no hay URL, saltar esta imagen
+              if (!imageUrl || typeof imageUrl !== 'string') {
+                console.warn('⚠️ URL de imagen inválida en getProducts:', imageUrl);
+                return null;
+              }
+              
+              // Limpiar URL de espacios y caracteres especiales
+              imageUrl = imageUrl.trim();
+              
+              // Si ya es una URL completa, validarla
+              if (imageUrl.startsWith('http')) {
+                try {
+                  new URL(imageUrl); // Validar URL
+                  return {
+                    id: img.id,
+                    urlImagen: imageUrl,
+                    url: imageUrl, // Para compatibilidad con el frontend
+                    orden: img.orden,
+                    es_principal: Boolean(img.es_principal)
+                  };
+                } catch (urlError) {
+                  console.warn('⚠️ URL de imagen malformada en getProducts:', imageUrl);
+                  return null;
+                }
+              }
+              
+              // Construir URL completa
+              const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+              const fullUrl = `${baseUrl}${cleanPath}`;
+              
+              try {
+                new URL(fullUrl); // Validar URL construida
+                return {
+                  id: img.id,
+                  urlImagen: fullUrl,
+                  url: fullUrl, // Para compatibilidad con el frontend
+                  orden: img.orden,
+                  es_principal: Boolean(img.es_principal)
+                };
+              } catch (urlError) {
+                console.warn('⚠️ URL construida malformada en getProducts:', fullUrl);
+                return null;
+              }
+            }).filter(img => img !== null); // Filtrar imágenes inválidas
           } catch (error) {
             console.warn('Error parseando imágenes para producto:', product.id, error);
             imagenes = [];
@@ -108,17 +267,22 @@ class ProductController {
           precioFinal: product.precio_oferta && product.precio_oferta < product.precio 
             ? parseFloat(product.precio_oferta) 
             : parseFloat(product.precio),
-          enOferta: product.precio_oferta && product.precio_oferta < product.precio,
+          enOferta: Boolean(product.en_oferta),
           categoriaId: product.categoria_id,
           categoriaNombre: product.categoriaNombre,
           stock: product.stock,
           stockMinimo: product.stock_minimo,
           stockBajo: product.stock <= product.stock_minimo,
           activo: Boolean(product.activo),
+          esServicio: Boolean(product.es_servicio),
+          es_servicio: Boolean(product.es_servicio), // Alias para compatibilidad
           isActive: Boolean(product.activo),
           destacado: Boolean(product.destacado),
           codigoBarras: product.codigo_barras,
           sku: product.sku,
+          ventasTotales: product.ventas_totales || 0,
+          calificacionPromedio: parseFloat(product.calificacion_promedio) || 0,
+          totalResenas: product.total_resenas || 0,
           imagenes: imagenes,
           etiquetas: etiquetas,
           fechaCreacion: product.fecha_creacion,
@@ -240,9 +404,81 @@ class ProductController {
     }
   }
 
+  // Invalidar cache de productos (para sincronización con móvil)
+  static async invalidateProductCache(req, res) {
+    try {
+      const { productId } = req.params;
+      
+      // Esta función puede ser extendida para invalidar cache específico
+      // Por ahora solo confirmamos que el producto existe
+      if (productId) {
+        const product = await query('SELECT id FROM productos WHERE id = ?', [productId]);
+        if (product.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Producto no encontrado'
+          });
+        }
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Cache invalidado exitosamente',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error invalidando cache:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor'
+      });
+    }
+  }
+
+  // Verificar si un producto ya existe por SKU o CodVinculacion
+  static async checkProductExists(req, res) {
+    const { sku, CodVinculacion } = req.query;
+    
+    try {
+      let existingProduct = null;
+      let searchField = '';
+      let searchValue = '';
+      
+      if (sku) {
+        const products = await query('SELECT id, nombre, sku, CodVinculacion FROM productos WHERE sku = ?', [sku]);
+        if (products.length > 0) {
+          existingProduct = products[0];
+          searchField = 'SKU';
+          searchValue = sku;
+        }
+      } else if (CodVinculacion) {
+        const products = await query('SELECT id, nombre, sku, CodVinculacion FROM productos WHERE CodVinculacion = ?', [CodVinculacion]);
+        if (products.length > 0) {
+          existingProduct = products[0];
+          searchField = 'Código de Vinculación';
+          searchValue = CodVinculacion;
+        }
+      }
+      
+      res.status(200).json({
+        success: true,
+        exists: !!existingProduct,
+        product: existingProduct,
+        searchField,
+        searchValue
+      });
+    } catch (error) {
+      console.error('Error verificando producto existente:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor'
+      });
+    }
+  }
+
   // Crear producto
   static async createProduct(req, res) {
-    const { nombre, descripcion, precio, stock, categoria_id, activo, imagenes, etiquetas, sku, codigo_barras, precio_oferta, destacado } = req.body;
+    const { nombre, descripcion, precio, stock, categoria_id, activo, imagenes, etiquetas, sku, codigo_barras, precio_oferta, destacado, CodVinculacion, esServicio, es_servicio } = req.body;
     const productId = uuidv4();
 
     try {
@@ -272,14 +508,15 @@ class ProductController {
         const slug = nombre.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').trim();
         const categoriaIdFinal = categoria_id || null;
         
+        const esServicioValue = Boolean(esServicio || es_servicio || false);
         await connection.execute(
-          'INSERT INTO productos (id, nombre, slug, descripcion, precio, precio_oferta, categoria_id, stock, stock_minimo, sku, codigo_barras, activo, destacado, en_oferta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [productId, nombre, slug, descripcion, precio, precio_oferta || null, categoriaIdFinal, stock || 0, 5, sku || null, codigo_barras || null, activo !== false, destacado || false, Boolean(precio_oferta && precio_oferta < precio)]
+          'INSERT INTO productos (id, nombre, slug, descripcion, precio, precio_oferta, categoria_id, stock, stock_minimo, sku, codigo_barras, activo, destacado, en_oferta, CodVinculacion, es_servicio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [productId, nombre, slug, descripcion, precio, precio_oferta || null, categoriaIdFinal, stock || 0, 5, sku || null, codigo_barras || null, activo !== false, destacado || false, Boolean(precio_oferta && precio_oferta < precio), CodVinculacion || null, esServicioValue]
         );
 
         // 2. Insertar en `producto_imagenes`
         if (imagenes && imagenes.length > 0) {
-          console.log(`📸 Procesando ${imagenes.length} imagen(es) para producto...`);
+          console.log(` Procesando ${imagenes.length} imagen(es) para producto...`);
           
           for (let i = 0; i < imagenes.length; i++) {
             const imageData = imagenes[i];
@@ -350,10 +587,42 @@ class ProductController {
       if (product.imagenes_raw) {
         try {
           const imagenesArray = JSON.parse(`[${product.imagenes_raw}]`);
-          imagenesFormateadas = imagenesArray.map(img => ({
-            ...img,
-            url: img.url.startsWith('http') ? img.url : `${baseUrl}${img.url}`
-          }));
+          imagenesFormateadas = imagenesArray.map(img => {
+            // Validar y limpiar URL de imagen
+            let imageUrl = img.url;
+            
+            // Si no hay URL, saltar esta imagen
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              console.warn('⚠️ URL de imagen inválida:', imageUrl);
+              return null;
+            }
+            
+            // Limpiar URL de espacios y caracteres especiales
+            imageUrl = imageUrl.trim();
+            
+            // Si ya es una URL completa, validarla
+            if (imageUrl.startsWith('http')) {
+              try {
+                new URL(imageUrl); // Validar URL
+                return { ...img, url: imageUrl };
+              } catch (urlError) {
+                console.warn('⚠️ URL de imagen malformada:', imageUrl);
+                return null;
+              }
+            }
+            
+            // Construir URL completa
+            const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+            const fullUrl = `${baseUrl}${cleanPath}`;
+            
+            try {
+              new URL(fullUrl); // Validar URL construida
+              return { ...img, url: fullUrl };
+            } catch (urlError) {
+              console.warn('⚠️ URL construida malformada:', fullUrl);
+              return null;
+            }
+          }).filter(img => img !== null); // Filtrar imágenes inválidas
         } catch (error) {
           console.warn('Error parseando imágenes:', error);
           imagenesFormateadas = [];
@@ -384,7 +653,8 @@ class ProductController {
         activo: Boolean(product.activo),
         isActive: Boolean(product.activo),
         destacado: Boolean(product.destacado),
-        peso: product.peso ? parseFloat(product.peso) : null,
+        esServicio: Boolean(product.es_servicio),
+        es_servicio: Boolean(product.es_servicio),
         dimensiones: product.dimensiones ? JSON.parse(product.dimensiones) : null,
         codigoBarras: product.codigo_barras,
         sku: product.sku,
@@ -404,6 +674,33 @@ class ProductController {
 
     } catch (error) {
       console.error('Error al crear producto:', error);
+      
+      // Manejar errores específicos de duplicación
+      if (error.code === 'ER_DUP_ENTRY') {
+        let duplicateField = 'campo';
+        let duplicateValue = 'valor';
+        
+        // Extraer información del error de duplicación
+        if (error.sqlMessage.includes('sku')) {
+          duplicateField = 'SKU';
+          duplicateValue = sku || 'N/A';
+        } else if (error.sqlMessage.includes('codigo_barras')) {
+          duplicateField = 'código de barras';
+          duplicateValue = codigo_barras || 'N/A';
+        } else if (error.sqlMessage.includes('CodVinculacion')) {
+          duplicateField = 'código de vinculación';
+          duplicateValue = CodVinculacion || 'N/A';
+        }
+        
+        return res.status(409).json({
+          success: false,
+          message: `Ya existe un producto con el mismo ${duplicateField}: ${duplicateValue}`,
+          error: 'DUPLICATE_PRODUCT',
+          duplicateField,
+          duplicateValue
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor'
@@ -424,7 +721,14 @@ class ProductController {
       }
 
       const { id } = req.params;
-      const { nombre, descripcion, precio, stock, categoria_id, activo, imagenes, etiquetas, sku, codigo_barras, precio_oferta, destacado } = req.body;
+      const { nombre, descripcion, precio, stock, categoria_id, activo, imagenes, etiquetas, sku, codigo_barras, precio_oferta, destacado, CodVinculacion, esServicio, es_servicio } = req.body;
+
+      console.log('🔍 Backend - Datos recibidos en updateProduct:', {
+        categoria_id,
+        categoria_id_type: typeof categoria_id,
+        categoria_id_value: categoria_id,
+        body: req.body
+      });
 
       // Verificar que el producto existe
       const existingProduct = await query('SELECT id FROM productos WHERE id = ?', [id]);
@@ -458,19 +762,62 @@ class ProductController {
           updateFields.push('nombre = ?', 'slug = ?');
           updateValues.push(nombre, slug);
         }
-        if (descripcion !== undefined) updateFields.push('descripcion = ?'), updateValues.push(descripcion);
-        if (precio !== undefined) updateFields.push('precio = ?'), updateValues.push(precio);
-        if (precio_oferta !== undefined) updateFields.push('precio_oferta = ?'), updateValues.push(precio_oferta);
-        if (categoria_id !== undefined) updateFields.push('categoria_id = ?'), updateValues.push(categoria_id);
-        if (stock !== undefined) updateFields.push('stock = ?'), updateValues.push(stock);
-        if (sku !== undefined) updateFields.push('sku = ?'), updateValues.push(sku);
-        if (codigo_barras !== undefined) updateFields.push('codigo_barras = ?'), updateValues.push(codigo_barras);
-        if (activo !== undefined) updateFields.push('activo = ?'), updateValues.push(activo);
-        if (destacado !== undefined) updateFields.push('destacado = ?'), updateValues.push(destacado);
+        if (descripcion !== undefined) {
+          updateFields.push('descripcion = ?');
+          updateValues.push(descripcion);
+        }
+        if (precio !== undefined) {
+          updateFields.push('precio = ?');
+          updateValues.push(precio);
+        }
+        if (precio_oferta !== undefined) {
+          updateFields.push('precio_oferta = ?');
+          updateValues.push(precio_oferta);
+        }
+        if (categoria_id !== undefined) {
+          // Convertir string vacío a null para MySQL
+          const categoriaIdValue = (categoria_id === '' || categoria_id === null) ? null : categoria_id;
+          console.log('🔧 Backend - Procesando categoria_id:', {
+            original: categoria_id,
+            processed: categoriaIdValue,
+            type: typeof categoria_id
+          });
+          updateFields.push('categoria_id = ?');
+          updateValues.push(categoriaIdValue);
+        }
+        if (stock !== undefined) {
+          updateFields.push('stock = ?');
+          updateValues.push(stock);
+        }
+        if (sku !== undefined) {
+          updateFields.push('sku = ?');
+          updateValues.push(sku);
+        }
+        if (codigo_barras !== undefined) {
+          updateFields.push('codigo_barras = ?');
+          updateValues.push(codigo_barras);
+        }
+        if (activo !== undefined) {
+          updateFields.push('activo = ?');
+          updateValues.push(activo);
+        }
+        if (destacado !== undefined) {
+          updateFields.push('destacado = ?');
+          updateValues.push(destacado);
+        }
+        if (esServicio !== undefined || es_servicio !== undefined) {
+          const esServicioValue = esServicio !== undefined ? Boolean(esServicio) : Boolean(es_servicio);
+          updateFields.push('es_servicio = ?');
+          updateValues.push(esServicioValue);
+        }
+        if (CodVinculacion !== undefined) {
+          updateFields.push('CodVinculacion = ?');
+          updateValues.push(CodVinculacion);
+        }
         
         // Calcular en_oferta
-        const enOferta = precio_oferta && precio !== undefined && precio_oferta < precio;
         if (precio_oferta !== undefined || precio !== undefined) {
+          const enOferta = precio_oferta && precio !== undefined && precio_oferta < precio ? 1 : 0;
           updateFields.push('en_oferta = ?');
           updateValues.push(enOferta);
         }
@@ -485,14 +832,14 @@ class ProductController {
           );
         }
 
-        // 2. Sincronizar imágenes: Eliminar las viejas y añadir las nuevas
+        // 2. Sincronizar imágenes: Solo si se proporcionan imágenes explícitamente
         if (imagenes !== undefined) {
           console.log(`🔄 Sincronizando imágenes para producto ${id}...`);
           
-          // Eliminar imágenes existentes
+          // Eliminar imágenes existentes siempre que se envíe el campo imagenes
           await connection.execute('DELETE FROM imagenes_producto WHERE producto_id = ?', [id]);
           
-          // Insertar nuevas imágenes
+          // Insertar nuevas imágenes si las hay
           if (imagenes && imagenes.length > 0) {
             for (let i = 0; i < imagenes.length; i++) {
               const imageData = imagenes[i];
@@ -518,7 +865,12 @@ class ProductController {
                 [uuidv4(), id, imageUrl, i, i === 0]
               );
             }
+            console.log(`✅ ${imagenes.length} imagen(es) sincronizada(s)`);
+          } else {
+            console.log(`📝 Imágenes eliminadas (array vacío)`);
           }
+        } else {
+          console.log(`📝 Imágenes no modificadas (campo no enviado)`);
         }
 
         // 3. Sincronizar etiquetas: Actualizar como JSON
@@ -562,10 +914,42 @@ class ProductController {
       if (product.imagenes_raw) {
         try {
           const imagenesArray = JSON.parse(`[${product.imagenes_raw}]`);
-          imagenesUpdate = imagenesArray.map(img => ({
-            ...img,
-            url: img.url.startsWith('http') ? img.url : `${baseUrl}${img.url}`
-          }));
+          imagenesUpdate = imagenesArray.map(img => {
+            // Validar y limpiar URL de imagen
+            let imageUrl = img.url;
+            
+            // Si no hay URL, saltar esta imagen
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              console.warn('⚠️ URL de imagen inválida:', imageUrl);
+              return null;
+            }
+            
+            // Limpiar URL de espacios y caracteres especiales
+            imageUrl = imageUrl.trim();
+            
+            // Si ya es una URL completa, validarla
+            if (imageUrl.startsWith('http')) {
+              try {
+                new URL(imageUrl); // Validar URL
+                return { ...img, url: imageUrl };
+              } catch (urlError) {
+                console.warn('⚠️ URL de imagen malformada:', imageUrl);
+                return null;
+              }
+            }
+            
+            // Construir URL completa
+            const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+            const fullUrl = `${baseUrl}${cleanPath}`;
+            
+            try {
+              new URL(fullUrl); // Validar URL construida
+              return { ...img, url: fullUrl };
+            } catch (urlError) {
+              console.warn('⚠️ URL construida malformada:', fullUrl);
+              return null;
+            }
+          }).filter(img => img !== null); // Filtrar imágenes inválidas
         } catch (error) {
           console.warn('Error parseando imágenes:', error);
           imagenesUpdate = [];
@@ -601,7 +985,8 @@ class ProductController {
         activo: Boolean(product.activo),
         isActive: Boolean(product.activo),
         destacado: Boolean(product.destacado),
-        peso: product.peso ? parseFloat(product.peso) : null,
+        esServicio: Boolean(product.es_servicio),
+        es_servicio: Boolean(product.es_servicio),
         dimensiones: product.dimensiones ? JSON.parse(product.dimensiones) : null,
         codigoBarras: product.codigo_barras,
         sku: product.sku,
@@ -797,6 +1182,10 @@ class ProductController {
         categoriaId,
         precioMin,
         precioMax,
+        enOferta,
+        calificacionMin,
+        esServicio,
+        es_servicio,
         orderBy = 'fecha_creacion',
         orderDir = 'DESC'
       } = req.query;
@@ -814,6 +1203,10 @@ class ProductController {
         categoriaId,
         precioMin: precioMin ? parseFloat(precioMin) : undefined,
         precioMax: precioMax ? parseFloat(precioMax) : undefined,
+        enOferta: enOferta !== undefined ? (enOferta === 'true' || enOferta === '1' || enOferta === true || enOferta === 1) : undefined,
+        calificacionMin: calificacionMin ? parseFloat(calificacionMin) : undefined,
+        esServicio: esServicio !== undefined ? (esServicio === 'true' || esServicio === '1') : undefined,
+        es_servicio: es_servicio !== undefined ? (es_servicio === 'true' || es_servicio === '1') : undefined,
         activo: true,
         orderBy,
         orderDir,
@@ -826,11 +1219,17 @@ class ProductController {
         Product.count(filters)
       ]);
 
+      const publicProducts = await Promise.all(
+        products.map(async (product) => {
+          return await product.toPublicObject(true, false); // includeImages = true
+        })
+      );
+
       res.json({
         success: true,
         message: 'Búsqueda realizada exitosamente',
         data: {
-          products: products.map(product => product.toPublicObject()),
+          products: publicProducts,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),

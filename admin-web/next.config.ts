@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Configuración para Docker
+  output: 'standalone',
+  
+  // Transpilar paquetes que necesitan ser procesados
+  transpilePackages: ['react-map-gl', 'mapbox-gl'],
+  
   // Optimizaciones de rendimiento
   experimental: {
     optimizePackageImports: ['@heroicons/react', 'lucide-react'],
@@ -15,6 +21,28 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 60,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: '192.168.3.104',
+        port: '3001',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        pathname: '/uploads/**',
+      },
+    ],
   },
   
   // Optimización del bundle

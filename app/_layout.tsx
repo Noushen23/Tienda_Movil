@@ -61,21 +61,14 @@ export default function RootLayout() {
   // Inicializar notificaciones cuando el usuario esté autenticado
   useEffect(() => {
     if (loaded && isAuthenticated && user && !pushNotifications.isRegistered && !pushNotifications.isLoading) {
-      console.log('🚀 Usuario autenticado, inicializando notificaciones push...');
-      pushNotifications.initializeNotifications().catch((error) => {
-        console.error('❌ Error al inicializar notificaciones:', error);
-        // No mostrar error al usuario, solo log
-      });
+      pushNotifications.initializeNotifications();
     }
   }, [loaded, isAuthenticated, user, pushNotifications.isRegistered, pushNotifications.isLoading]);
 
   // Limpiar notificaciones cuando el usuario cierre sesión
   useEffect(() => {
     if (!isAuthenticated && pushNotifications.isRegistered) {
-      console.log('🧹 Usuario cerró sesión, limpiando notificaciones...');
-      pushNotifications.unregisterPushNotifications().catch((error) => {
-        console.error('❌ Error al limpiar notificaciones:', error);
-      });
+      pushNotifications.unregisterPushNotifications();
     }
   }, [isAuthenticated, pushNotifications.isRegistered]);
 

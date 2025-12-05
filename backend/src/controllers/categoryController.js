@@ -97,12 +97,106 @@ class CategoryController {
 
       const products = await category.getProducts(filters);
 
+      // Formatear productos con imágenes validadas
+      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      const formattedProducts = await Promise.all(
+        products.map(async (product) => {
+          // Obtener imágenes del producto
+          const imagesQuery = `
+            SELECT id, url_imagen, orden, es_principal
+            FROM imagenes_producto
+            WHERE producto_id = ?
+            ORDER BY orden ASC
+          `;
+          const images = await query(imagesQuery, [product.id]);
+          
+          // Formatear imágenes con validación
+          const formattedImages = images.map(img => {
+            // Validar y limpiar URL de imagen
+            let imageUrl = img.url_imagen;
+            
+            // Si no hay URL, saltar esta imagen
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              console.warn('⚠️ URL de imagen inválida en getCategoryProducts:', imageUrl);
+              return null;
+            }
+            
+            // Limpiar URL de espacios y caracteres especiales
+            imageUrl = imageUrl.trim();
+            
+            // Si ya es una URL completa, validarla
+            if (imageUrl.startsWith('http')) {
+              try {
+                new URL(imageUrl); // Validar URL
+                return {
+                  id: img.id,
+                  urlImagen: imageUrl,
+                  url: imageUrl, // Para compatibilidad con el frontend
+                  orden: img.orden,
+                  es_principal: Boolean(img.es_principal)
+                };
+              } catch (urlError) {
+                console.warn('⚠️ URL de imagen malformada en getCategoryProducts:', imageUrl);
+                return null;
+              }
+            }
+            
+            // Construir URL completa
+            const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+            const fullUrl = `${baseUrl}${cleanPath}`;
+            
+            try {
+              new URL(fullUrl); // Validar URL construida
+              return {
+                id: img.id,
+                urlImagen: fullUrl,
+                url: fullUrl, // Para compatibilidad con el frontend
+                orden: img.orden,
+                es_principal: Boolean(img.es_principal)
+              };
+            } catch (urlError) {
+              console.warn('⚠️ URL construida malformada en getCategoryProducts:', fullUrl);
+              return null;
+            }
+          }).filter(img => img !== null); // Filtrar imágenes inválidas
+
+          return {
+            id: product.id,
+            nombre: product.nombre,
+            title: product.nombre,
+            descripcion: product.descripcion,
+            precio: parseFloat(product.precio),
+            precioOferta: product.precio_oferta ? parseFloat(product.precio_oferta) : null,
+            precioFinal: product.precio_oferta && product.precio_oferta < product.precio 
+              ? parseFloat(product.precio_oferta) 
+              : parseFloat(product.precio),
+            enOferta: Boolean(product.en_oferta),
+            categoriaId: product.categoria_id,
+            categoriaNombre: product.categoria_nombre,
+            stock: product.stock,
+            stockMinimo: product.stock_minimo,
+            stockBajo: product.stock <= product.stock_minimo,
+            activo: Boolean(product.activo),
+            isActive: Boolean(product.activo),
+            destacado: Boolean(product.destacado),
+            codigoBarras: product.codigo_barras,
+            sku: product.sku,
+            ventasTotales: product.ventas_totales || 0,
+            calificacionPromedio: parseFloat(product.calificacion_promedio) || 0,
+            totalResenas: product.total_resenas || 0,
+            imagenes: formattedImages,
+            fechaCreacion: product.fecha_creacion,
+            fechaActualizacion: product.fecha_actualizacion
+          };
+        })
+      );
+
       res.json({
         success: true,
         message: 'Productos de categoría obtenidos exitosamente',
         data: {
           category: category.toPublicObject(),
-          products
+          products: formattedProducts
         }
       });
 

@@ -14,7 +14,8 @@ export const useProduct = (productId: string) => {
       
       return response.data;
     },
-    staleTime: CACHE_TIMES.ONE_HOUR,
+    staleTime: CACHE_TIMES.FIVE_MINUTES, // Reducido de 1 hora a 5 minutos
+    refetchOnMount: 'always', // Siempre refetch al montar el componente
     enabled: !!productId && productId.length > 0,
   });
 

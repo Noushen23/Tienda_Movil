@@ -41,6 +41,16 @@ const validateRegister = [
     .trim()
     .isLength({ max: 500 })
     .withMessage('Dirección no puede exceder 500 caracteres'),
+  body('tipo_identificacion')
+    .optional()
+    .isIn(['CC', 'NIT', 'CE', 'TR'])
+    .withMessage('Tipo de identificación inválido. Valores permitidos: CC, NIT, CE, PAS.'),
+  body('numero_identificacion')
+    .optional()
+    .trim()
+    .isLength({ min: 5, max: 20 })
+    .withMessage('Número de identificación debe tener entre 5 y 20 caracteres')
+    .matches(/^[a-zA-Z0-9\-]+$/).withMessage('Número de identificación contiene caracteres inválidos.'),
   handleValidationErrors
 ];
 
@@ -111,6 +121,16 @@ const validateProduct = [
     .trim()
     .isLength({ max: 100 })
     .withMessage('SKU no puede exceder 100 caracteres'),
+  body('tipo_identificacion')
+    .optional()
+    .isIn(['CC', 'NIT', 'CE', 'TR'])
+    .withMessage('Tipo de identificación inválido. Valores permitidos: CC, NIT, CE, TR.'),
+  body('numero_identificacion')
+    .optional()
+    .trim()
+    .isLength({ min: 5, max: 20 })
+    .withMessage('Número de identificación debe tener entre 5 y 20 caracteres')
+    .matches(/^[a-zA-Z0-9\-]+$/).withMessage('Número de identificación contiene caracteres inválidos.'),
   handleValidationErrors
 ];
 

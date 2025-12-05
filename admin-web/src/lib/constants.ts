@@ -140,30 +140,6 @@ export const VALIDATION_RULES = {
   MAX_TAGS: 10,
 } as const
 
-// Constantes de navegación
-export const NAVIGATION_ITEMS = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: 'dashboard',
-  },
-  {
-    name: 'Productos',
-    href: '/dashboard/products',
-    icon: 'products',
-  },
-  {
-    name: 'Categorías',
-    href: '/dashboard/categories',
-    icon: 'categories',
-  },
-  {
-    name: 'Kardex',
-    href: '/dashboard/kardex',
-    icon: 'kardex',
-  },
-] as const
-
 // Constantes de colores para gráficos
 export const CHART_COLORS = [
   '#3B82F6', // Blue

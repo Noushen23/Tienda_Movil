@@ -85,7 +85,6 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
         return
       }
 
-      console.log('🔍 Guardando categoría:', formData)
 
       // Crear categoría
       const categoryData: AdminCategory = {
@@ -97,7 +96,6 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
         sortOrder: formData.sortOrder
       }
 
-      console.log('🔍 Datos de la categoría:', categoryData)
 
       let response
       if (category && category.id) {
@@ -108,10 +106,8 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
         response = await AdminCategoriesService.createCategory(categoryData)
       }
 
-      console.log('✅ Respuesta:', response)
 
       if (response) {
-        console.log('✅ Categoría guardada exitosamente')
         const message = category && category.id ? 'Categoría actualizada exitosamente' : 'Categoría creada exitosamente'
         alert(message)
         if (onSuccess) {

@@ -1,15 +1,14 @@
 import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Dimensions,
   Image,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -18,296 +17,407 @@ import { ThemedView } from '@/presentation/theme/components/ThemedView';
 import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { formatCurrency } from '@/presentation/utils';
-import { useUserFavorites, useToggleFavorite, useIsFavorite } from '@/presentation/favorites/hooks/useFavorites';
+import {
+  useUserFavorites,
+  useToggleFavorite,
+  useIsFavorite,
+} from '@/presentation/favorites/hooks/useFavorites';
 import { Favorite } from '@/core/api/favoritesApi';
 import { useAuthStore } from '@/presentation/auth/store/useAuthStore';
 
-// Obtener dimensiones de pantalla para diseño responsive
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+// Responsive breakpoints igual que en catálogo
+const SCREEN = Dimensions.get('window');
+const SCREEN_WIDTH = SCREEN.width;
+const PRODUCT_CARD_MIN_WIDTH = 165;
+const PRODUCT_CARD_SPACING = 12;
+const getNumColumns = () => {
+  return SCREEN_WIDTH > 550 ? 3 : 2;
+};
+const getCardWidth = () => {
+  const numColumns = getNumColumns();
+  return (
+    (SCREEN_WIDTH -
+      PRODUCT_CARD_SPACING * 2 -
+      PRODUCT_CARD_SPACING * (numColumns - 1)) /
+    numColumns
+  );
+};
 
-// Calcular dimensiones responsive
-const getResponsiveDimensions = () => {
-  const isSmallScreen = screenWidth < 375;
-  const isMediumScreen = screenWidth >= 375 && screenWidth < 414;
+// Paleta de colores para servicios (igual que en services.tsx)
+const COLOR_PALETTE = {
+  primary: '#314259',    // Azul oscuro
+  accent: '#4F758C',     // Azul medio
+  light: '#8EACBF',      // Azul claro
+};
+
+// Función para obtener colores basados en el ID del producto
+const getColorsByProductId = (productId: number | string): {
+  primary: string;
+  secondary: string;
+  accent: string;
+  light: string;
+  dark: string;
+  lightest: string;
+} => {
+  const id = typeof productId === 'string' ? parseInt(productId) || 0 : productId;
+  const colors = [COLOR_PALETTE.primary, COLOR_PALETTE.accent, COLOR_PALETTE.light];
+  const colorIndex = id % colors.length;
+  const selectedColor = colors[colorIndex];
   
+  // Generar variaciones del color seleccionado
   return {
-    isSmallScreen,
-    isMediumScreen,
-    numColumns: isSmallScreen ? 2 : 2,
-    cardWidth: (screenWidth - 30 - (isSmallScreen ? 10 : 15)) / (isSmallScreen ? 2 : 2),
-    cardHeight: isSmallScreen ? 280 : isMediumScreen ? 300 : 320,
-    imageHeight: isSmallScreen ? 140 : isMediumScreen ? 150 : 160,
-    titleFontSize: isSmallScreen ? 14 : isMediumScreen ? 15 : 16,
-    descriptionFontSize: isSmallScreen ? 12 : 13,
-    priceFontSize: isSmallScreen ? 15 : isMediumScreen ? 16 : 17,
+    primary: selectedColor,
+    secondary: colors[(colorIndex + 1) % colors.length],
+    accent: colors[(colorIndex + 2) % colors.length],
+    light: '#F0F4F8', // Fondo claro azulado
+    dark: COLOR_PALETTE.primary,
+    lightest: '#F8FAFC',
   };
 };
 
-/**
- * Componente de producto favorito optimizado con React.memo
- * Solo se re-renderiza cuando las props del favorito cambian
- */
-const FavoriteProductItem = memo(({ favorite }: { favorite: Favorite }) => {
-  const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
-  const toggleFavorite = useToggleFavorite();
-  const { isFavorite } = useIsFavorite(favorite.producto_id);
-  const responsiveDims = getResponsiveDimensions();
+// Catalog-style product card for favorites
+const FavoriteProductItem = memo(
+  ({ favorite }: { favorite: Favorite }) => {
+    const tintColor = useThemeColor({}, 'tint');
+    const backgroundColor = useThemeColor({}, 'background');
+    const textColor = useThemeColor({}, 'text');
+    const toggleFavorite = useToggleFavorite();
+    const { isFavorite } = useIsFavorite(favorite.producto_id);
 
-  const handleToggleFavorite = useCallback(async (e: any) => {
-    e.stopPropagation();
-    
-    try {
-      toggleFavorite.toggle(favorite.producto_id, isFavorite);
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
+    const cardWidth = getCardWidth();
+
+
+    const handlePressToggleFavorite = useCallback(
+      async (e: any) => {
+        e.stopPropagation?.();
+        try {
+          toggleFavorite.toggle(favorite.producto_id, isFavorite);
+        } catch (error) {
+          // no-op
+        }
+      },
+      [favorite.producto_id, isFavorite, toggleFavorite]
+    );
+
+    const product = favorite.producto as typeof favorite.producto & {
+      images?: string[];
+      esServicio?: boolean;
+      es_servicio?: boolean;
+    };
+
+    if (!product) {
+      return (
+        <View style={[favoriteStyles.card, { width: cardWidth }]}>
+          <View style={favoriteStyles.missingCardBody}>
+            <ThemedText style={{ color: '#e53935', fontWeight: '600' }}>
+              Error al cargar producto
+            </ThemedText>
+          </View>
+        </View>
+      );
     }
-  }, [favorite.producto_id, isFavorite, toggleFavorite]);
 
-  const handleProductPress = useCallback(() => {
-    router.push(`/(customer)/product/${favorite.producto_id}` as any);
-  }, [favorite.producto_id]);
+    const imageUrl =
+      product.images && product.images.length > 0 ? product.images[0] : null;
+    
+    // Verificar si es un servicio (recarga)
+    // Verificar ambos campos posibles: esServicio (camelCase) y es_servicio (snake_case)
+    const isService = Boolean(
+      product.esServicio || 
+      product.es_servicio || 
+      (product as any).esServicio === true || 
+      (product as any).es_servicio === true
+    );
+    
+    // Obtener colores para servicios
+    const serviceColors = isService ? getColorsByProductId(favorite.producto_id) : null;
 
-  // Si no hay detalles del producto, mostrar un mensaje de error
-  if (!favorite.producto) {
+    const handlePressProduct = useCallback(() => {
+      if (isService) {
+        router.push(`/(customer)/product/${favorite.producto_id}?fromService=true` as any);
+      } else {
+        router.push(`/(customer)/product/${favorite.producto_id}` as any);
+      }
+    }, [favorite.producto_id, isService]);
+
     return (
-      <View style={[styles.errorProductCard, { backgroundColor }]}>
-        <ThemedText style={styles.errorText}>
-          Error al cargar producto
+      <Pressable
+        style={[
+          favoriteStyles.card,
+          { 
+            width: cardWidth, 
+            backgroundColor: isService && serviceColors ? serviceColors.lightest : backgroundColor,
+            borderColor: isService && serviceColors ? serviceColors.accent : '#f7f7f7',
+            borderWidth: isService && serviceColors ? 2.5 : 1,
+            shadowColor: isService && serviceColors ? serviceColors.accent : '#000',
+            shadowOpacity: isService ? 0.15 : 0.06,
+            shadowRadius: isService ? 4 : 2,
+            // elevation: isService ? 5 : 3,
+          },
+        ]}
+        onPress={handlePressProduct}
+      >
+        <View style={favoriteStyles.imageBox}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={favoriteStyles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={favoriteStyles.noImageBox}>
+              <Ionicons name="image-outline" size={34} color="#bbb" />
+            </View>
+          )}
+          
+          {/* Badge de Recarga/Servicio */}
+          {isService && (
+            <View style={favoriteStyles.serviceBadge}>
+              <Ionicons name="construct" size={10} color="#fff" />
+              <ThemedText style={favoriteStyles.serviceBadgeText}>Recargas</ThemedText>
+            </View>
+          )}
+          
+          <TouchableOpacity
+            style={[
+              favoriteStyles.favBtn,
+              {
+                backgroundColor: toggleFavorite.isPending
+                  ? '#ffebee'
+                  : '#fff',
+                opacity: toggleFavorite.isPending ? 0.7 : 1,
+              },
+            ]}
+            onPress={handlePressToggleFavorite}
+            disabled={toggleFavorite.isPending}
+            activeOpacity={0.82}
+          >
+            {toggleFavorite.isPending ? (
+              <ActivityIndicator size={15} color="#e53935" />
+            ) : (
+              <Ionicons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={18}
+                color="#E53935"
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+        <View style={favoriteStyles.cardContent}>
+          <ThemedText
+            style={[
+              favoriteStyles.name,
+              isService && serviceColors ? {
+                color: serviceColors.primary,
+                fontWeight: '800'
+              } : {}
+            ]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {product.nombre}
+          </ThemedText>
+          <ThemedText
+            style={[
+              favoriteStyles.desc,
+              isService && serviceColors ? {
+                color: serviceColors.primary,
+                opacity: 0.85
+              } : {}
+            ]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {product.descripcion || 'Sin descripción'}
+          </ThemedText>
+          <View style={favoriteStyles.priceRow}>
+            {product.precio_oferta && product.precio_oferta < product.precio && (
+              <>
+                <ThemedText style={[
+                  favoriteStyles.ofertaPrice,
+                  isService && serviceColors ? { color: serviceColors.accent } : {}
+                ]}>
+                  {formatCurrency(product.precio_oferta)}
+                </ThemedText>
+                <ThemedText style={favoriteStyles.precioTachado}>
+                  {formatCurrency(product.precio)}
+                </ThemedText>
+              </>
+            )}
+            {(!product.precio_oferta ||
+              !(product.precio_oferta < product.precio)) && (
+              <ThemedText style={[
+                favoriteStyles.price,
+                isService && serviceColors ? { color: serviceColors.accent } : {}
+              ]}>
+                {formatCurrency(product.precio_final)}
+              </ThemedText>
+            )}
+          </View>
+          {/* Stock - Solo se muestra si NO es servicio */}
+          {!isService && (
+            <View style={favoriteStyles.stockRow}>
+              <Ionicons
+                name={product.stock > 0 ? 'checkmark-circle' : 'close-circle'}
+                size={14}
+                color={product.stock > 0 ? '#38a169' : '#d32f2f'}
+              />
+              <ThemedText
+                style={[
+                  favoriteStyles.stockText,
+                  {
+                    color:
+                      product.stock > 0
+                        ? '#38a169'
+                        : '#d32f2f',
+                  },
+                ]}
+              >
+                {product.stock > 0
+                  ? `Stock: ${product.stock}`
+                  : 'Agotado'}
+              </ThemedText>
+            </View>
+          )}
+          {/* Badge de Favorito para Servicios - Solo se muestra si ES servicio */}
+          {isService && serviceColors && (
+            <View style={[
+              favoriteStyles.favoriteServiceBadge,
+              {
+                backgroundColor: serviceColors.accent + '20',
+                borderColor: serviceColors.accent,
+              }
+            ]}>
+              <Ionicons name="heart" size={12} color={serviceColors.accent} />
+              <ThemedText style={[
+                favoriteStyles.favoriteServiceBadgeText,
+                { color: serviceColors.accent }
+              ]}>
+                En Favoritos
+              </ThemedText>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  },
+  (prev, next) => {
+    // Compare like memo from catalog cards
+    const pA = prev.favorite.producto;
+    const pB = next.favorite.producto;
+    return (
+      prev.favorite.id === next.favorite.id &&
+      prev.favorite.producto_id === next.favorite.producto_id &&
+      pA?.nombre === pB?.nombre &&
+      pA?.precio === pB?.precio &&
+      pA?.precio_final === pB?.precio_final &&
+      pA?.precio_oferta === pB?.precio_oferta &&
+      pA?.stock === pB?.stock &&
+      pA?.images?.[0] === pB?.images?.[0]
+    );
+  }
+);
+FavoriteProductItem.displayName = 'FavoriteProductItem';
+
+const EmptyFavorites = memo(
+  ({ onExploreCatalog }: { onExploreCatalog: () => void }) => {
+    const tintColor = useThemeColor({}, 'tint');
+    return (
+      <View style={favoriteStyles.emptyWrap}>
+        <View style={favoriteStyles.emptyIconWrap}>
+          <Ionicons name="heart-circle-outline" size={80} color={tintColor} />
+        </View>
+        <ThemedText style={favoriteStyles.emptyTitle}>
+          ¡Aún no tienes favoritos!
         </ThemedText>
+        <ThemedText style={favoriteStyles.emptySubtitle}>
+          Explora el catálogo y agrega tus productos favoritos tocando el{' '}
+          <Ionicons name="heart-outline" size={14} color={tintColor} />
+          .
+        </ThemedText>
+        <TouchableOpacity
+          style={[favoriteStyles.exploreBtn, { backgroundColor: tintColor }]}
+          onPress={onExploreCatalog}
+          activeOpacity={0.88}
+        >
+          <Ionicons name="pricetag-outline" size={18} color="#fff" />
+          <ThemedText style={favoriteStyles.exploreBtnText}>
+            Ver catálogo
+          </ThemedText>
+        </TouchableOpacity>
       </View>
     );
   }
-
-  const product = favorite.producto as typeof favorite.producto & { images?: string[] };
-  
-  // Manejar imagen del producto de la misma forma que en catálogo
-  const imageUrl = product.images && product.images.length > 0 ? product.images[0] : null;
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.productCard, 
-        {
-          width: responsiveDims.cardWidth,
-          height: responsiveDims.cardHeight,
-          backgroundColor,
-        }
-      ]}
-      onPress={handleProductPress}
-    >
-      <View style={[styles.productImage, { height: responsiveDims.imageHeight }]}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.productImageContent}
-            resizeMode="cover"
-            onError={(error) => {
-              console.log('❌ Error loading favorite image:', imageUrl, error);
-            }}
-            onLoad={() => {
-              console.log('✅ Favorite image loaded successfully:', imageUrl);
-            }}
-          />
-        ) : (
-          <View style={styles.noImageContainer}>
-            <Ionicons 
-              name="image-outline" 
-              size={responsiveDims.isSmallScreen ? 50 : responsiveDims.isMediumScreen ? 55 : 60} 
-              color="#ccc" 
-            />
-            <ThemedText style={styles.noImageText}>Sin imagen</ThemedText>
-          </View>
-        )}
-        
-        {/* Ícono de favoritos */}
-        <TouchableOpacity
-          style={[
-            styles.favoriteButton,
-            { 
-              backgroundColor: toggleFavorite.isPending ? '#f0f0f0' : '#fff',
-              opacity: toggleFavorite.isPending ? 0.7 : 1,
-            }
-          ]}
-          onPress={handleToggleFavorite}
-          disabled={toggleFavorite.isPending}
-          activeOpacity={0.8}
-        >
-          {toggleFavorite.isPending ? (
-            <ActivityIndicator 
-              size="small" 
-              color="#FF6B6B" 
-            />
-          ) : (
-            <Ionicons 
-              name={isFavorite ? "heart" : "heart-outline"} 
-              size={responsiveDims.isSmallScreen ? 16 : 18} 
-              color={isFavorite ? "#FF6B6B" : "#FF6B6B"} 
-            />
-          )}
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.productInfo}>
-        <ThemedText 
-          style={[styles.productTitle, { fontSize: responsiveDims.titleFontSize }]} 
-          numberOfLines={2}
-        >
-          {product.nombre}
-        </ThemedText>
-        
-        <ThemedText 
-          style={[styles.productDescription, { fontSize: responsiveDims.descriptionFontSize }]} 
-          numberOfLines={2}
-        >
-          {product.descripcion || 'Sin descripción'}
-        </ThemedText>
-        
-        <View style={styles.priceContainer}>
-          <ThemedText 
-            style={[styles.productPrice, { fontSize: responsiveDims.priceFontSize }]}
-          >
-            {formatCurrency(product.precio_final)}
-          </ThemedText>
-          
-          {product.precio_oferta && product.precio_oferta < product.precio && (
-            <ThemedText style={styles.originalPrice}>
-              {formatCurrency(product.precio)}
-            </ThemedText>
-          )}
-        </View>
-        
-        <View style={styles.stockContainer}>
-          <Ionicons 
-            name={product.stock > 0 ? "checkmark-circle" : "close-circle"} 
-            size={14} 
-            color={product.stock > 0 ? "#4CAF50" : "#F44336"} 
-          />
-          <ThemedText 
-            style={[
-              styles.stockText,
-              { color: product.stock > 0 ? "#4CAF50" : "#F44336" }
-            ]}
-          >
-            {product.stock > 0 ? `Stock: ${product.stock}` : 'Agotado'}
-          </ThemedText>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}, (prevProps, nextProps) => {
-  // Comparación personalizada: solo re-renderizar si cambian las propiedades relevantes
-  const prevProduct = prevProps.favorite.producto;
-  const nextProduct = nextProps.favorite.producto;
-  
-  return (
-    prevProps.favorite.id === nextProps.favorite.id &&
-    prevProps.favorite.producto_id === nextProps.favorite.producto_id &&
-    prevProduct?.nombre === nextProduct?.nombre &&
-    prevProduct?.precio === nextProduct?.precio &&
-    prevProduct?.precio_final === nextProduct?.precio_final &&
-    prevProduct?.precio_oferta === nextProduct?.precio_oferta &&
-    prevProduct?.stock === nextProduct?.stock &&
-    // Comparar imágenes: misma cantidad y misma primera imagen
-    prevProduct?.images?.length === nextProduct?.images?.length &&
-    prevProduct?.images?.[0] === nextProduct?.images?.[0]
-  );
-});
-
-// Nombre del componente para debugging
-FavoriteProductItem.displayName = 'FavoriteProductItem';
-
-// Componente para el estado vacío
-const EmptyFavorites = memo(({ onExploreCatalog }: { onExploreCatalog: () => void }) => {
-  const tintColor = useThemeColor({}, 'tint');
-  
-  return (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="heart-outline" size={80} color="#ccc" />
-        <View style={[styles.emptyIconBadge, { backgroundColor: tintColor + '20' }]}>
-          <Ionicons name="heart" size={24} color={tintColor} />
-        </View>
-      </View>
-      
-      <ThemedText style={styles.emptyTitle}>¡No tienes favoritos aún!</ThemedText>
-      <ThemedText style={styles.emptySubtitle}>
-        Explora nuestro catálogo y marca con ❤️ los productos que más te gusten.
-        Podrás encontrarlos fácilmente aquí cuando quieras volver a verlos.
-      </ThemedText>
-      
-      <TouchableOpacity
-        style={[styles.exploreButton, { backgroundColor: tintColor }]}
-        onPress={onExploreCatalog}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="storefront-outline" size={20} color="white" />
-        <ThemedText style={styles.exploreButtonText}>Explorar Catálogo</ThemedText>
-        <Ionicons name="arrow-forward" size={16} color="white" />
-      </TouchableOpacity>
-    </View>
-  );
-});
-
+);
 EmptyFavorites.displayName = 'EmptyFavorites';
 
-// Componente para el estado de error
-const ErrorState = memo(({ onRetry, isTokenExpired }: { onRetry: () => void; isTokenExpired?: boolean }) => {
-  const tintColor = useThemeColor({}, 'tint');
-  
-  return (
-    <View style={styles.errorContainer}>
-      <View style={styles.errorIconContainer}>
-        <Ionicons name="alert-circle-outline" size={80} color="#F44336" />
-      </View>
-      
-      <ThemedText style={styles.errorTitle}>¡Ups! Algo salió mal</ThemedText>
-      <ThemedText style={styles.errorSubtitle}>
-        {isTokenExpired 
-          ? 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente para ver tus favoritos.'
-          : 'No pudimos cargar tus favoritos. Verifica tu conexión a internet e intenta de nuevo.'
-        }
-      </ThemedText>
-      
-      <TouchableOpacity
-        style={[styles.retryButton, { backgroundColor: tintColor }]}
-        onPress={onRetry}
-        activeOpacity={0.8}
-      >
-        <Ionicons name={isTokenExpired ? "log-in" : "refresh"} size={20} color="white" />
-        <ThemedText style={styles.retryButtonText}>
-          {isTokenExpired ? 'Iniciar Sesión' : 'Intentar de Nuevo'}
+const ErrorState = memo(
+  ({
+    onRetry,
+    isTokenExpired,
+  }: {
+    onRetry: () => void;
+    isTokenExpired?: boolean;
+  }) => {
+    const tintColor = useThemeColor({}, 'tint');
+    return (
+      <View style={favoriteStyles.emptyWrap}>
+        <View style={favoriteStyles.emptyIconWrap}>
+          <Ionicons name="alert-circle-outline" size={80} color="#d32f2f" />
+        </View>
+        <ThemedText style={favoriteStyles.emptyTitle}>
+          {isTokenExpired ? 'Sesión expirada' : 'Ha ocurrido un error'}
         </ThemedText>
-      </TouchableOpacity>
-    </View>
-  );
-});
-
+        <ThemedText style={favoriteStyles.emptySubtitle}>
+          {isTokenExpired
+            ? 'Por favor inicia sesión nuevamente para ver tus favoritos.'
+            : 'No pudimos cargar la información. Intenta nuevamente.'}
+        </ThemedText>
+        <TouchableOpacity
+          style={[
+            favoriteStyles.exploreBtn,
+            { backgroundColor: tintColor, marginTop: 16 },
+          ]}
+          onPress={onRetry}
+          activeOpacity={0.88}
+        >
+          <Ionicons
+            name={isTokenExpired ? 'log-in-outline' : 'refresh'}
+            size={18}
+            color="#fff"
+          />
+          <ThemedText style={favoriteStyles.exploreBtnText}>
+            {isTokenExpired ? 'Iniciar sesión' : 'Intentar de nuevo'}
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+);
 ErrorState.displayName = 'ErrorState';
 
-// Pantalla principal de favoritos
 export default function FavoritesScreen() {
+  // colores/tema igual a catálogo
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
   const [refreshing, setRefreshing] = useState(false);
   const { status, logout } = useAuthStore();
-  
-  // Obtener favoritos con detalles de productos
+
   const {
     data: favoritesData,
     isLoading,
     error,
     refetch,
-    isRefetching
+    isRefetching,
   } = useUserFavorites({
     include_details: true,
-    limit: 50, // Límite alto para mostrar todos los favoritos
+    limit: 50,
   });
 
-  // Detectar si el error es por token expirado
-  const isTokenExpired = error?.message?.includes('Token inválido') || error?.message?.includes('expirado');
+  const isTokenExpired =
+    error?.message?.includes('Token inválido') ||
+    error?.message?.includes('expirado');
 
-  // Manejar refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -317,15 +427,12 @@ export default function FavoritesScreen() {
     }
   }, [refetch]);
 
-  // Navegar al catálogo
   const handleExploreCatalog = useCallback(() => {
     router.push('/(customer)/catalog' as any);
   }, []);
 
-  // Reintentar carga
   const handleRetry = useCallback(() => {
     if (isTokenExpired) {
-      // Si el token está expirado, redirigir al login
       logout();
       router.replace('/auth/login' as any);
     } else {
@@ -333,64 +440,80 @@ export default function FavoritesScreen() {
     }
   }, [isTokenExpired, logout, refetch]);
 
-  // Redirigir al login si no está autenticado
   React.useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/auth/login' as any);
     }
   }, [status]);
 
-  // Obtener lista de favoritos
   const favorites = useMemo(() => {
-    return favoritesData?.success && favoritesData.data ? favoritesData.data.favorites : [];
+    return favoritesData?.success && favoritesData.data
+      ? favoritesData.data.favorites
+      : [];
   }, [favoritesData]);
 
-  // Renderizar item de la lista
-  const renderFavoriteItem = useCallback(({ item }: { item: Favorite }) => (
-    <FavoriteProductItem favorite={item} />
-  ), []);
+  // Key igual catálogo
+  const getItemKey = useCallback((item: Favorite) => String(item.id), []);
 
-  // Obtener key para cada item
-  const getItemKey = useCallback((item: Favorite) => item.id, []);
+  const numColumns = getNumColumns();
+  const cardWidth = getCardWidth();
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+    <ThemedView style={{ flex: 1, backgroundColor: backgroundColor }}>
+      {/* Header estilo catálogo */}
+      <View style={favoriteStyles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={favoriteStyles.headerBack}
+        >
+          <Ionicons name="arrow-back" size={23} color={tintColor} />
         </TouchableOpacity>
-        <ThemedText style={styles.headerTitle}>Mis Favoritos</ThemedText>
-        <View style={styles.headerRight}>
+        <ThemedText style={favoriteStyles.headerText}>
+          Mis Favoritos
+        </ThemedText>
+        <View style={favoriteStyles.headerRight}>
           {favorites.length > 0 && (
-            <ThemedText style={styles.favoriteCount}>
-              {favorites.length}
-            </ThemedText>
+            <View style={favoriteStyles.counterBadge}>
+              <ThemedText style={favoriteStyles.counterBadgeText}>
+                {favorites.length}
+              </ThemedText>
+            </View>
           )}
         </View>
       </View>
-
-
-      {/* Contenido */}
-      <View style={styles.content}>
+      {/* CONTENT */}
+      <View style={favoriteStyles.flex1}>
         {isLoading ? (
-          <View style={styles.loadingContainer}>
+          <View style={[favoriteStyles.centered, { flex: 1 }]}>
             <ActivityIndicator size="large" color={tintColor} />
-            <ThemedText style={styles.loadingText}>Cargando tus favoritos...</ThemedText>
+            <ThemedText style={{ marginTop: 16, color: '#aaa' }}>
+              Cargando...
+            </ThemedText>
           </View>
         ) : error ? (
-          <ErrorState onRetry={handleRetry} isTokenExpired={isTokenExpired} />
+          <ErrorState
+            onRetry={handleRetry}
+            isTokenExpired={isTokenExpired}
+          />
         ) : favorites.length === 0 ? (
           <EmptyFavorites onExploreCatalog={handleExploreCatalog} />
         ) : (
           <FlatList
             data={favorites}
-            renderItem={renderFavoriteItem}
+            renderItem={({ item }) => (
+              <FavoriteProductItem favorite={item} />
+            )}
             keyExtractor={getItemKey}
-            numColumns={2}
+            numColumns={numColumns}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-            columnWrapperStyle={styles.row}
+            contentContainerStyle={favoriteStyles.listContent}
+            columnWrapperStyle={
+              numColumns > 1
+                ? { gap: PRODUCT_CARD_SPACING }
+                : undefined
+            }
+            ItemSeparatorComponent={() => <View style={{ height: 17 }} />}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing || isRefetching}
@@ -400,12 +523,14 @@ export default function FavoritesScreen() {
               />
             }
             ListFooterComponent={() => (
-              <View style={styles.footer}>
-                <ThemedText style={styles.footerText}>
-                  {favorites.length} {favorites.length === 1 ? 'producto' : 'productos'} en tus favoritos
+              <View style={favoriteStyles.footer}>
+                <ThemedText style={favoriteStyles.footerText}>
+                  Mostrando {favorites.length}{' '}
+                  {favorites.length === 1 ? 'producto' : 'productos'}
                 </ThemedText>
               </View>
             )}
+            style={{ flex: 1 }}
           />
         )}
       </View>
@@ -413,8 +538,8 @@ export default function FavoritesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
+const favoriteStyles = StyleSheet.create({
+  flex1: {
     flex: 1,
   },
   header: {
@@ -427,110 +552,129 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  headerTitle: {
+  headerBack: {
+    padding: 8,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 36,
+    minHeight: 36,
+    marginRight: 4,
+  },
+  headerText: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    letterSpacing: 0.1,
+    color: '#262626',
+    marginHorizontal: 8,
+    includeFontPadding: false,
   },
   headerRight: {
+    minWidth: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: 6,
+    marginLeft: 4,
+  },
+  counterBadge: {
+    backgroundColor: '#FFE5E5',
+    borderRadius: 12,
     minWidth: 24,
-    alignItems: 'center',
-  },
-  favoriteCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FF6B6B',
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+    paddingHorizontal: 6,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    alignSelf: 'flex-end',
   },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+  counterBadgeText: {
+    color: '#E53935',
+    fontWeight: '700',
+    fontSize: 14,
   },
-  listContainer: {
-    paddingTop: 8,
-    paddingBottom: 20,
-    paddingHorizontal: 12,
+
+  listContent: {
+    paddingHorizontal: PRODUCT_CARD_SPACING,
+    paddingVertical: 16,
+    gap: PRODUCT_CARD_SPACING,
+    minHeight: 120,
+    flexGrow: 1,
   },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 0,
-  },
-  productCard: {
-    borderRadius: 16,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-    backgroundColor: '#fff',
-    marginBottom: 16,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-  },
-  productImage: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+  card: {
+    borderRadius: 18,
     marginBottom: 0,
     overflow: 'hidden',
-    paddingHorizontal: 10,
+    minHeight: 252,
+    minWidth: PRODUCT_CARD_MIN_WIDTH,
+    maxWidth: 320,
+    borderWidth: 1,
+    borderColor: '#f7f7f7',
+    backgroundColor: '#fff',
+    // elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
   },
-  productImageContent: {
+  missingCardBody: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 142,
+  },
+  imageBox: {
+    width: '100%',
+    aspectRatio: 1.15,
+    backgroundColor: '#f7f8fa',
+    alignItems: 'stretch',
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
+  image: {
     width: '100%',
     height: '100%',
-    borderRadius: 11,
   },
-  noImageContainer: {
+  noImageBox: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    alignItems: 'center',
+    height: 110,
+    backgroundColor: '#f1f1f5',
   },
-  noImageText: {
-    marginTop: 5,
-    fontSize: 10,
-    color: '#666',
-    textAlign: 'center',
-  },
-  favoriteButton: {
+  favBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 10,
+    right: 10,
+    borderRadius: 100,
     width: 32,
     height: 32,
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
+    backgroundColor: '#fff',
+    // elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    zIndex: 2,
   },
-  productInfo: {
-    padding: 12,
+  cardContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 13,
     flex: 1,
+    minHeight: 98,
+    gap: 5,
   },
-  productTitle: {
+  name: {
+    fontSize: 15.5,
     fontWeight: '700',
     color: '#333',
+    marginBottom: 0,
+  },
+  desc: {
+    fontSize: 12.3,
+    color: '#73777D',
     marginBottom: 4,
     lineHeight: 20,
   },
@@ -539,146 +683,148 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 18,
   },
-  priceContainer: {
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    gap: 7,
+    marginBottom: 0,
   },
-  productPrice: {
+  ofertaPrice: {
+    color: '#E53935',
     fontWeight: '700',
-    color: '#2E7D32',
+    fontSize: 16.5,
   },
-  originalPrice: {
-    fontSize: 12,
-    color: '#999',
+  precioTachado: {
+    color: '#9e9e9e',
     textDecorationLine: 'line-through',
-    marginLeft: 8,
+    fontSize: 13,
+    marginLeft: 4,
   },
-  stockContainer: {
+  price: {
+    color: '#212121',
+    fontWeight: '700',
+    fontSize: 16.5,
+  },
+  stockRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
   },
   stockText: {
     fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
+    fontWeight: '600',
+    marginLeft: 3,
+    color: '#38a169',
   },
-  errorProductCard: {
-    borderRadius: 15,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 200,
-    borderWidth: 1,
-    borderColor: '#ffebee',
-  },
-  errorText: {
-    color: '#F44336',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  emptyContainer: {
+  /* EMPTY state styles */
+  emptyWrap: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyIconContainer: {
-    position: 'relative',
-    marginBottom: 30,
-  },
-  emptyIconBadge: {
-    position: 'absolute',
-    bottom: -5,
-    right: -5,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 36,
+    paddingTop: 20,
+  },
+  emptyIconWrap: {
+    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#333',
+    color: '#222',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 15,
   },
   emptySubtitle: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 26,
+    marginTop: 2,
+    lineHeight: 22,
   },
-  exploreButton: {
+  exploreBtn: {
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
+    alignContent: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 15,
-    borderRadius: 25,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    paddingVertical: 11,
+    borderRadius: 23,
+    gap: 8,
+    // elevation: 2,
   },
-  exploreButtonText: {
-    color: 'white',
+  exploreBtnText: {
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-    marginHorizontal: 8,
+    fontWeight: '700',
+    marginLeft: 2,
+    letterSpacing: 0.1,
   },
-  errorContainer: {
-    flex: 1,
+  centered: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  errorIconContainer: {
-    marginBottom: 30,
-  },
-  errorTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  errorSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 15,
-    borderRadius: 25,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    alignSelf: 'center',
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    marginTop: 10,
+    paddingVertical: 19,
+    paddingBottom: 29,
+    marginTop: 0,
   },
   footerText: {
     fontSize: 14,
-    color: '#666',
+    color: '#777',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  // Badge de servicio/recarga
+  serviceBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    zIndex: 2,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    // elevation: 2,
+  },
+  serviceBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  favoriteServiceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    gap: 4,
+    borderWidth: 1.5,
+    shadowColor: '#f43f5e',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    // elevation: 1,
+  },
+  favoriteServiceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

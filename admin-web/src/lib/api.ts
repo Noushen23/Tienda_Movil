@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001/api'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.104:3001/api/v1'
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -40,10 +40,13 @@ api.interceptors.response.use(
     const status = error.response?.status
 
     if (status === 401) {
+      console.log('⚠️ API: Error 401 - Token inválido o expirado')
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
       delete api.defaults.headers.common['Authorization']
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+      // Solo redirigir si no estamos ya en la página de login
+      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+        console.log('🔄 API: Redirigiendo al login desde:', window.location.pathname)
         window.location.href = '/'
       }
     } else if (status === 403) {

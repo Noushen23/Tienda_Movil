@@ -16,14 +16,10 @@ export const useDashboardStats = () => {
   return useQuery({
     queryKey: [...DASHBOARD_QUERY_KEY, 'stats'],
     queryFn: async (): Promise<BasicDashboardStats> => {
-      console.log('📊 Obteniendo estadísticas básicas del dashboard...');
-      
       try {
         // Obtener productos del backend real
         const productsResponse = await AdminProductsService.getProducts();
         const products = productsResponse.data || [];
-        
-        console.log('✅ Dashboard: Productos obtenidos:', products.length);
         
         // Calcular estadísticas básicas
         const totalProducts = products.length;
@@ -36,7 +32,7 @@ export const useDashboardStats = () => {
           lowStockProducts,
         };
       } catch (error) {
-        console.error('❌ Error al obtener estadísticas:', error);
+        console.error('Error al obtener estadísticas:', error);
         return {
           totalProducts: 0,
           activeProducts: 0,

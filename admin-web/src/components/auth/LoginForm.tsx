@@ -17,28 +17,31 @@ export function LoginForm() {
     setError('')
 
     try {
-      console.log('🔍 Iniciando proceso de login...')
+      console.log('🔐 Intentando login con:', email)
       const result = await authService.login(email, password)
-      console.log('📋 Resultado del login:', result)
       
       if (result) {
-        console.log('✅ Login exitoso, verificando rol...')
-        console.log('👤 Rol del usuario:', result.user.roles)
-        // Verificar si es administrador
-        if (result.user.roles === 'admin') {
-          console.log('🚀 Redirigiendo al dashboard...')
-          router.push('/dashboard')
+        console.log('✅ Login exitoso, usuario:', result.user)
+        // Verificar si tiene un rol permitido (admin, moderator, repartidor)
+        const allowedRoles: string[] = ['admin', 'moderator', 'repartidor']
+        if (allowedRoles.includes(result.user.roles)) {
+          console.log('✅ Rol permitido, redirigiendo al dashboard')
+          // Usar replace en lugar de push para evitar que el usuario pueda volver atrás
+          router.replace('/dashboard')
         } else {
-          console.log('❌ Usuario no es administrador')
-          setError('Solo los administradores pueden acceder a este panel')
+          console.error('❌ Rol no permitido:', result.user.roles)
+          setError(`No tienes permisos para acceder a este panel. Tu rol actual es: ${result.user.roles}. Solo administradores, moderadores y repartidores pueden acceder.`)
+          // Limpiar datos del login fallido
+          authService.logout()
         }
       } else {
-        console.log('❌ Login falló - resultado es null')
-        setError('Credenciales incorrectas')
+        console.error('❌ Login falló: Credenciales incorrectas o error en el servidor')
+        setError('Credenciales incorrectas. Por favor, verifica tu email y contraseña.')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error en el proceso de login:', error)
-      setError('Error al iniciar sesión')
+      const errorMessage = error.response?.data?.message || error.message || 'Error al iniciar sesión'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -57,7 +60,7 @@ export function LoginForm() {
             Panel de Administración
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Inicia sesión para gestionar tu tienda
+            Inicia sesión con tu cuenta de administrador, moderador o repartidor
           </p>
         </div>
         
@@ -118,8 +121,8 @@ export function LoginForm() {
               Credenciales de prueba:
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Email: admin@gmail.com<br />
-              Contraseña: 1234567
+              Email: admin2025@admin.com<br />
+              Contraseña: 123456789Aa
             </p>
           </div>
         </form>

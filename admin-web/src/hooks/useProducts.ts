@@ -98,6 +98,43 @@ export function useDeleteProductImage() {
   )
 }
 
+// Hook para actualizar metadatos de imagen
+export function useUpdateImageMetadata() {
+  return useOptimizedMutation(
+    ({ productId, imageId, metadata }: { 
+      productId: string; 
+      imageId: string; 
+      metadata: { alt_text?: string; orden?: number; esPrincipal?: boolean }
+    }) =>
+      AdminProductsService.updateImageMetadata(productId, imageId, metadata),
+    {
+      invalidateQueries: [[CONFIG.CACHE_KEYS.PRODUCTS]],
+    }
+  )
+}
+
+// Hook para reordenar imágenes
+export function useReorderImages() {
+  return useOptimizedMutation(
+    ({ productId, imageIds }: { productId: string; imageIds: string[] }) =>
+      AdminProductsService.reorderImages(productId, imageIds),
+    {
+      invalidateQueries: [[CONFIG.CACHE_KEYS.PRODUCTS]],
+    }
+  )
+}
+
+// Hook para marcar imagen como principal
+export function useSetMainImage() {
+  return useOptimizedMutation(
+    ({ productId, imageId }: { productId: string; imageId: string }) =>
+      AdminProductsService.setMainImage(productId, imageId),
+    {
+      invalidateQueries: [[CONFIG.CACHE_KEYS.PRODUCTS]],
+    }
+  )
+}
+
 
 
 

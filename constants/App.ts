@@ -22,6 +22,7 @@ export const CACHE_TIMES = {
   TEN_MINUTES: 1000 * 60 * 10,
   FIVE_MINUTES: 1000 * 60 * 5,
   TWO_MINUTES: 1000 * 60 * 2,
+  ONE_MINUTE: 1000 * 60,
 } as const;
 
 export const TIMEOUTS = {

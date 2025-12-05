@@ -9,7 +9,6 @@ class Review {
     this.ordenId = data.orden_id;
     this.calificacion = data.calificacion;
     this.comentario = data.comentario;
-    this.activa = data.activa;
     this.fechaCreacion = data.fecha_creacion;
     this.fechaActualizacion = data.fecha_actualizacion;
     
@@ -29,7 +28,6 @@ class Review {
         calificacion,
         comentario = null
       } = reviewData;
-
       // Validar datos
       if (!usuarioId || !productoId || !calificacion) {
         throw new Error('Datos requeridos: usuarioId, productoId, calificacion');
@@ -330,7 +328,7 @@ class Review {
   // Actualizar reseña
   async update(updateData) {
     try {
-      const { calificacion, comentario } = updateData;
+      const { calificacion, comentario} = updateData;
       
       if (calificacion !== undefined && (calificacion < 1 || calificacion > 5)) {
         throw new Error('La calificación debe estar entre 1 y 5');
@@ -348,6 +346,7 @@ class Review {
         updateFields.push('comentario = ?');
         params.push(comentario);
       }
+      
       
       if (updateFields.length === 0) {
         throw new Error('No hay campos para actualizar');

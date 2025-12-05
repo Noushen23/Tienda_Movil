@@ -44,7 +44,15 @@ class AuthController {
         });
       }
 
-      const { email, nombreCompleto, password, telefono, direccion } = req.body;
+      const { 
+        email, 
+        nombreCompleto, 
+        password, 
+        telefono, 
+        direccion,
+        tipo_identificacion,
+        numero_identificacion
+      } = req.body;
 
       // Verificar si el usuario ya existe
       const existingUser = await User.findByEmail(email);
@@ -62,6 +70,8 @@ class AuthController {
         password,
         telefono,
         direccion,
+        tipo_identificacion,
+        numero_identificacion,
         rol: 'cliente'
       });
 
@@ -93,6 +103,29 @@ class AuthController {
         console.error('⚠️ Error al enviar email de verificación:', emailError);
       }
 
+      // Intentar crear tercero en ApiTercero (no crítico para el registro)
+      let warningMessage = null;
+      try {
+        const terceroService = require ('../services/terceroService');
+        const terceroResult = await terceroService.createTercero({
+          id: user.id,
+          email: user.email,
+          nombreCompleto: user.nombreCompleto,
+          telefono: user.telefono,
+          direccion: user.direccion,
+          tipoIdentificacion: user.tipoIdentificacion,
+          numeroIdentificacion: user.numeroIdentificacion
+        });
+
+        //Si hay advertencia de duplicado, capturarla para mostrar al usuario
+        if (terceroResult?.warning) {
+          warningMessage = terceroResult.warning;
+        }
+      } catch (terceroError){
+        // No fallar el registro si falla la creacion del tercero
+        console.error('⚠️ Error al crear tercero en ApiTercero:', terceroError.message);
+      }
+
       // Generar tokens para autenticar automáticamente
       const token = AuthController.generateToken(user);
       const refreshToken = AuthController.generateRefreshToken(user);
@@ -100,6 +133,7 @@ class AuthController {
       res.status(201).json({
         success: true,
         message: 'Usuario registrado exitosamente. Hemos enviado un código de verificación a tu email. Por favor verifica tu cuenta antes de realizar compras.',
+        warning: warningMessage || undefined, // Incluir advertencia si existe
         data: {
           user: user.toPublicObject(),
           token,

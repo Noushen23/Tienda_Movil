@@ -93,6 +93,8 @@ router.get('/search', validateSearch, ProductController.searchProducts);
 router.get('/featured', ProductController.getFeaturedProducts);
 router.get('/top', ProductController.getTopProducts);
 router.get('/stats', ProductController.getProductStats);
+router.get('/check-exists', ProductController.checkProductExists);
+router.post('/invalidate-cache/:productId?', ProductController.invalidateProductCache);
 
 // Ruta principal (debe ir antes de /:id)
 router.get('/', validatePagination, ProductController.getProducts);

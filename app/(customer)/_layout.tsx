@@ -48,6 +48,16 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
+          name="services"
+          options={{
+            title: 'Servicios',
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="construct-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="favorites"
           options={{
             title: 'Favoritos',

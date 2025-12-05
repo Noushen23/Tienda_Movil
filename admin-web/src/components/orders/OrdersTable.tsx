@@ -1,277 +1,605 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AdminOrdersService, AdminOrder, OrderStatus } from '@/lib/admin-orders';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { CheckCircle, Clock, Loader2, RefreshCw, Truck, XCircle, Package } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useAdminOrders } from '@/hooks/useAdminOrders';
+import { AdminOrder, OrderFilters, OrderStatus, PaymentMethod } from '@/lib/admin-orders';
+import Link from 'next/link';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { 
+  MagnifyingGlassIcon, 
+  FunnelIcon, 
+  ArrowUpIcon, 
+  ArrowDownIcon,
+  EyeIcon,
+  CheckCircleIcon,
+  XCircleIcon
+} from '@heroicons/react/24/outline';
 
-const statusConfig: Record<OrderStatus, { text: string; color: string; icon: React.ElementType }> = {
-  pendiente: { text: 'Pendiente', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: Clock },
-  confirmada: { text: 'Confirmada', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: CheckCircle },
-  en_proceso: { text: 'En Proceso', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Loader2 },
-  enviada: { text: 'Enviada', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Truck },
-  entregada: { text: 'Entregada', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle },
-  cancelada: { text: 'Cancelada', color: 'bg-red-100 text-red-800 border-red-200', icon: XCircle },
-  reembolsada: { text: 'Reembolsada', color: 'bg-gray-100 text-gray-800 border-gray-200', icon: RefreshCw },
+
+const statusColors: Record<OrderStatus, string> = {
+  pendiente: 'bg-yellow-100 text-yellow-800',
+  confirmada: 'bg-blue-100 text-blue-800',
+  en_proceso: 'bg-purple-100 text-purple-800',
+  enviada: 'bg-indigo-100 text-indigo-800',
+  entregada: 'bg-green-100 text-green-800',
+  cancelada: 'bg-red-100 text-red-800',
+  reembolsada: 'bg-gray-100 text-gray-800',
 };
 
-export function OrdersTable() {
-  const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+const statusLabels: Record<OrderStatus, string> = {
+  pendiente: 'Pendiente',
+  confirmada: 'Confirmada',
+  en_proceso: 'En Proceso',
+  enviada: 'Enviada',
+  entregada: 'Entregada',
+  cancelada: 'Cancelada',
+  reembolsada: 'Reembolsada',
+};
 
-  // Query para obtener los pedidos
-  const { data: response, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['admin-orders'],
-    queryFn: AdminOrdersService.getAllOrders,
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  transferencia: 'Transferencia',
+  pse: 'PSE',
+};
+
+const ORDER_SORTABLE_FIELDS = [
+  'numero_orden',
+  'usuario_id',
+  'estado',
+  'total',
+  'fecha_creacion',
+] as const;
+type OrderSortField = typeof ORDER_SORTABLE_FIELDS[number];
+
+export default function OrdersTable() {
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<OrderSortField>('fecha_creacion');
+  const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  
+
+
+  
+
+
+  const [filters, setFilters] = useState<OrderFilters>({
+    limit: 50,
+    offset: 0,
+    orderBy: 'fecha_creacion',
+    orderDir: 'DESC',
   });
 
-  // Mutación para actualizar el estado del pedido
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, newStatus }: { orderId: string; newStatus: OrderStatus }) =>
-      AdminOrdersService.updateOrderStatus(orderId, newStatus),
-    onSuccess: () => {
-      // Invalidar la query de pedidos para refrescar la tabla
-      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-    },
-    onError: (err) => {
-      alert(`Error al actualizar el pedido: ${err.message}`);
-    },
-  });
+  const { data, isLoading, error } = useAdminOrders(filters);
 
-  const handleConfirmOrder = (orderId: string) => {
-    if (confirm('¿Estás seguro de que quieres confirmar este pedido?')) {
-      updateStatusMutation.mutate({ orderId, newStatus: 'confirmada' });
+  // Funciones de utilidad
+  // const copyToClipboard = async (text: string, label: string) => {
+  //   try {
+  //     await navigator.clipboard.writeText(text);
+  //     toast.success(`${label} copiado al portapapeles`);
+  //   } catch (error) {
+  //     toast.error('Error al copiar al portapapeles');
+  //   }
+  // };
+
+  // const shareOrder = async (order: AdminOrder) => {
+  //   try {
+  //     const message = `Pedido ${order.numeroOrden}\nCliente: ${order.usuario?.nombreCompleto || 'N/A'}\nTotal: $${order.total.toLocaleString('es-CO')}\nEstado: ${statusLabels[order.estado]}`;
+      
+  //     if (navigator.share) {
+  //       await navigator.share({
+  //         title: `Pedido ${order.numeroOrden}`,
+  //         text: message,
+  //       });
+  //     } else {
+  //       await copyToClipboard(message, 'Información del pedido');
+  //     }
+  //   } catch (error) {
+  //     console.log('Error sharing:', error);
+  //   }
+  // };
+
+  // const printOrders = () => {
+  //   window.print();
+  //   toast.success('Imprimiendo pedidos...');
+  // };
+
+  const handleFilterChange = (key: keyof OrderFilters, value: any) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value || undefined,
+      offset: 0, // Reset offset when filters change
+    }));
+  };
+
+  const handleSort = (field: OrderSortField) => {
+    const newDirection = sortField === field && sortDirection === 'DESC' ? 'ASC' : 'DESC';
+    setSortField(field);
+    setSortDirection(newDirection);
+    setFilters((prev) => ({
+      ...prev,
+      orderBy: field,
+      orderDir: newDirection,
+      offset: 0,
+    }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      limit: 50,
+      offset: 0,
+      orderBy: 'fecha_creacion',
+      orderDir: 'DESC',
+    });
+    setSearchTerm('');
+    setSortField('fecha_creacion');
+    setSortDirection('DESC');
+  };
+
+  const handlePrevPage = () => {
+    setFilters((prev) => ({
+      ...prev,
+      offset: Math.max(0, (prev.offset || 0) - (prev.limit || 50)),
+    }));
+  };
+
+  const handleNextPage = () => {
+    setFilters((prev) => ({
+      ...prev,
+      offset: (prev.offset || 0) + (prev.limit || 50),
+    }));
+  };
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const selectAllOrders = () => {
+    if (selectedOrders.length === uniqueOrders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(uniqueOrders.map(order => order.id));
     }
   };
 
-  const orders = response?.data?.orders || [];
-  const totalOrders = response?.data?.pagination?.total || 0;
+  // Obtener órdenes y eliminar duplicados por ID
+  const uniqueOrders = useMemo<AdminOrder[]>(() => {
+    const orders = data?.data?.orders || [];
+    const seen = new Set<string>();
+    return orders.filter(order => {
+      if (seen.has(order.id)) {
+        return false;
+      }
+      seen.add(order.id);
+      return true;
+    });
+  }, [data]);
 
-  const filteredOrders = statusFilter === 'all'
-    ? orders
-    : orders.filter(order => order.estado === statusFilter);
+  // Filtrar órdenes por término de búsqueda
+  const filteredOrders = useMemo<AdminOrder[]>(() => {
+    if (!searchTerm) return uniqueOrders;
+    
+    return uniqueOrders.filter(order => 
+      order.numeroOrden.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.usuario?.nombreCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.usuario?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.direccionEnvio?.ciudad?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [uniqueOrders, searchTerm]);
 
-  // Contar pedidos por estado
-  const ordersByStatus = orders.reduce((acc, order) => {
-    acc[order.estado] = (acc[order.estado] || 0) + 1;
-    return acc;
-  }, {} as Record<OrderStatus, number>);
-
-  if (isLoading) {
+  if (error) {
     return (
-      <div className="flex justify-center items-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-3 text-gray-600 font-medium">Cargando pedidos...</span>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-800">Error al cargar los pedidos</p>
       </div>
     );
   }
 
-  if (isError) {
-    return (
-      <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
-        <div className="flex items-start">
-          <XCircle className="h-6 w-6 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-red-800 font-semibold text-lg">Error al cargar pedidos</h3>
-            <p className="text-red-700 mt-1">
-              {error instanceof Error ? error.message : 'No se pudieron cargar los pedidos. Por favor, intenta nuevamente.'}
-            </p>
-            <button
-              onClick={() => refetch()}
-              className="mt-4 inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reintentar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const orders = filteredOrders;
+  const pagination = data?.data?.pagination;
 
   return (
-    <div className="space-y-6">
-      {/* Estadísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Pedidos</p>
-              <p className="text-3xl font-bold text-gray-900">{totalOrders}</p>
+    <div className="space-y-4">
+      {/* Header con controles mejorados */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-gray-900">Todos los Pedidos</h2>
+            {pagination && (
+              <span className="text-sm text-gray-500">
+                ({pagination.total} total)
+              </span>
+            )}
+            {selectedOrders.length > 0 && (
+              <span className="text-sm text-blue-600 font-medium">
+                ({selectedOrders.length} seleccionados)
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Búsqueda */}
+            <div className="relative">
+              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar pedidos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+              />
             </div>
-            <Package className="h-10 w-10 text-blue-500 opacity-80" />
+            
+            {/* Botón de filtros */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <FunnelIcon className="h-5 w-5" />
+              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+            </button>
+            
+            {/* Acciones masivas */}
+            {selectedOrders.length > 0 && (
+              <div className="flex items-center gap-2">
+                {/* <button
+                  onClick={printOrders}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                >
+                  <PrinterIcon className="h-4 w-4" />
+                  <span className="text-sm">Imprimir</span>
+                </button> */}
+                <button
+                  onClick={() => setSelectedOrders([])}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pendientes</p>
-              <p className="text-3xl font-bold text-gray-900">{ordersByStatus.pendiente || 0}</p>
+
+        {/* Panel de Filtros */}
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Filtro por estado */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <select
+                  value={filters.estado || ''}
+                  onChange={(e) => handleFilterChange('estado', e.target.value as OrderStatus)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="confirmada">Confirmada</option>
+                  <option value="en_proceso">En Proceso</option>
+                  <option value="enviada">Enviada</option>
+                  <option value="entregada">Entregada</option>
+                  <option value="cancelada">Cancelada</option>
+                  <option value="reembolsada">Reembolsada</option>
+                </select>
+              </div>
+
+              {/* Filtro por método de pago */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Método de Pago
+                </label>
+                <select
+                  value={filters.metodoPago || ''}
+                  onChange={(e) => handleFilterChange('metodoPago', e.target.value as PaymentMethod)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="pse">PSE</option>
+                </select>
+              </div>
+
+              {/* Filtro por migración TNS */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Migración TNS
+                </label>
+                <select
+                  value={filters.migradoTNS === undefined ? '' : filters.migradoTNS ? 'true' : 'false'}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    handleFilterChange('migradoTNS', value === '' ? undefined : value === 'true');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos</option>
+                  <option value="true">Migrados</option>
+                  <option value="false">No migrados</option>
+                </select>
+              </div>
+
+              {/* Filtro por fecha desde */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Desde
+                </label>
+                <input
+                  type="date"
+                  value={filters.fechaDesde || ''}
+                  onChange={(e) => handleFilterChange('fechaDesde', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Filtro por fecha hasta */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hasta
+                </label>
+                <input
+                  type="date"
+                  value={filters.fechaHasta || ''}
+                  onChange={(e) => handleFilterChange('fechaHasta', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
-            <Clock className="h-10 w-10 text-yellow-500 opacity-80" />
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Enviadas</p>
-              <p className="text-3xl font-bold text-gray-900">{ordersByStatus.enviada || 0}</p>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={handleClearFilters}
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 font-medium"
+              >
+                Limpiar Filtros
+              </button>
             </div>
-            <Truck className="h-10 w-10 text-indigo-500 opacity-80" />
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Entregadas</p>
-              <p className="text-3xl font-bold text-gray-900">{ordersByStatus.entregada || 0}</p>
-            </div>
-            <CheckCircle className="h-10 w-10 text-green-500 opacity-80" />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Tabla de pedidos */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          {/* Filtros y controles */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-3">
-              <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
-                Filtrar por estado:
-              </label>
-              <select
-                id="status-filter"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
-                className="block rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3"
-              >
-                <option value="all">Todos ({totalOrders})</option>
-                {Object.entries(statusConfig).map(([status, config]) => (
-                  <option key={status} value={status}>
-                    {config.text} ({ordersByStatus[status as OrderStatus] || 0})
-                  </option>
-                ))}
-              </select>
+      {/* Tabla de pedidos mejorada */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {isLoading ? (
+          <div className="p-6">
+            <div className="animate-pulse space-y-4">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="h-16 bg-gray-200 rounded"></div>
+              ))}
             </div>
-            <button
-              onClick={() => refetch()}
-              disabled={isLoading}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw size={16} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Actualizar
-            </button>
           </div>
-        </div>
-
-        {/* Tabla */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pedido
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cliente
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => {
-                const status = statusConfig[order.estado];
-                const Icon = status.icon;
-                const isUpdating = updateStatusMutation.isPending && updateStatusMutation.variables?.orderId === order.id;
-                
-                return (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{order.numeroOrden}</div>
-                      <div className="text-sm text-gray-500">{order.itemsCount} {order.itemsCount === 1 ? 'item' : 'items'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 font-medium">
-                        {order.usuario?.nombreCompleto || 'Usuario no disponible'}
+        ) : orders.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            <p>No se encontraron pedidos</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <input
+                        type="checkbox"
+                        checked={selectedOrders.length === orders.length && orders.length > 0}
+                        onChange={selectAllOrders}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('numero_orden')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Número de Orden
+                        {sortField === 'numero_orden' && (
+                          sortDirection === 'ASC' ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />
+                        )}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {order.usuario?.email || 'N/A'}
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('usuario_id')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Cliente
+                        {sortField === 'usuario_id' && (
+                          sortDirection === 'ASC' ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />
+                        )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDateTime(order.fechaCreacion)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {formatCurrency(order.total)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${status.color}`}>
-                        <Icon className="h-3 w-3 mr-1.5" />
-                        {status.text}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {order.estado === 'pendiente' && (
-                        <button
-                          onClick={() => handleConfirmOrder(order.id)}
-                          disabled={isUpdating}
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isUpdating ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Procesando...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle size={16} className="mr-2" />
-                              Confirmar
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {order.estado !== 'pendiente' && (
-                        <span className="text-xs text-gray-400 italic">Sin acciones disponibles</span>
-                      )}
-                    </td>
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('estado')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Estado
+                        {sortField === 'estado' && (
+                          sortDirection === 'ASC' ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Método de Pago
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Migrado TNS
+                    </th>
+                    {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Dirección de Envío
+                    </th> */}
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('total')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Total
+                        {sortField === 'total' && (
+                          sortDirection === 'ASC' ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('fecha_creacion')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Fecha
+                        {sortField === 'fecha_creacion' && (
+                          sortDirection === 'ASC' ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={() => toggleOrderSelection(order.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          {order.numeroOrden}
+                          {/* <button
+                            onClick={() => copyToClipboard(order.numeroOrden, 'Número de pedido')}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <DocumentDuplicateIcon className="h-4 w-4" />
+                          </button> */}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {order.usuario?.nombreCompleto || 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.usuario?.email || ''}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            statusColors[order.estado]
+                          }`}
+                        >
+                          {statusLabels[order.estado]}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {paymentMethodLabels[order.metodoPago as PaymentMethod] || order.metodoPago}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {order.tns_kardex_id ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
+                              Migrado
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              ID: {order.tns_kardex_id}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <XCircleIcon className="h-3.5 w-3.5 mr-1" />
+                            No migrado
+                          </span>
+                        )}
+                      </td>
+                      {/* <td className="px-6 py-4 whitespace-nowrap">
+                        {order.direccionEnvio ? (
+                          <div className="text-sm text-gray-900">
+                            <div className="font-medium">{order.direccionEnvio.nombreDestinatario}</div>
+                            <div className="text-gray-500">{order.direccionEnvio.ciudad}, {order.direccionEnvio.departamento}</div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">
+                            {order.direccionEnvioId ? (
+                              <div>
+                                <div className="text-yellow-600">Dirección no encontrada</div>
+                                <div className="text-xs text-gray-400">ID: {order.direccionEnvioId}</div>
+                              </div>
+                            ) : (
+                              'Sin dirección'
+                            )}
+                          </div>
+                        )}
+                      </td> */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        ${order.total.toLocaleString('es-CO')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {format(new Date(order.fechaCreacion), "dd MMM yyyy, HH:mm", { locale: es })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/dashboard/orders/${order.id}`}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </Link>
+                          {/* <button
+                            onClick={() => shareOrder(order)}
+                            className="text-gray-600 hover:text-gray-900"
+                          >
+                            <ShareIcon className="h-4 w-4" />
+                          </button> */}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Mensaje de lista vacía */}
-        {filteredOrders.length === 0 && (
-          <div className="text-center py-16 px-6">
-            <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay pedidos</h3>
-            <p className="text-sm text-gray-500">
-              {statusFilter === 'all' 
-                ? 'Aún no hay pedidos en el sistema.'
-                : `No se encontraron pedidos con el estado "${statusConfig[statusFilter as OrderStatus]?.text}".`
-              }
-            </p>
-          </div>
+            {/* Paginación */}
+            {pagination && (
+              <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+                <div className="text-sm text-gray-700">
+                  Mostrando {(pagination.offset || 0) + 1} a{' '}
+                  {Math.min((pagination.offset || 0) + (pagination.limit || 0), pagination.total)} de{' '}
+                  {pagination.total} resultados
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={!pagination.offset || pagination.offset === 0}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={handleNextPage}
+                    disabled={(pagination.offset || 0) + (pagination.limit || 0) >= pagination.total}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
-

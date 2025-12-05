@@ -5,7 +5,11 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "sync": "node syncTNS.js",
+    "sync:test": "node test-sync.js",
+    "sync:manual": "node -e \"require('./syncTNS').ejecutarSincronizacionManual().then(() => process.exit(0)).catch(() => process.exit(1))\"",
+    "sync:verbose": "SYNC_LOG_LEVEL=debug node syncTNS.js"
   },
   "keywords": [
     "api",
@@ -20,6 +24,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "mysql2": "^3.15.2",
+    "node-cron": "^4.2.1",
     "node-firebird": "^1.1.7"
   },
   "devDependencies": {

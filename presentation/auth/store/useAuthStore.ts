@@ -12,7 +12,7 @@ export interface AuthState {
   isAuthenticated: boolean;
 
   login: (email: string, password: string) => Promise<boolean>;
-  register: (nombreCompleto: string, email: string, password: string, telefono?: string) => Promise<boolean>;
+  register: (nombreCompleto: string, email: string, password: string, telefono?: string, tipo_identificacion?: 'CC' | 'NIT' | 'CE' | 'TR', numero_identificacion?: string) => Promise<boolean>;
   checkStatus: () => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  register: async (nombreCompleto: string, email: string, password: string, telefono?: string) => {
+  register: async (nombreCompleto: string, email: string, password: string, telefono?: string, tipo_identificacion?: 'CC' | 'NIT' | 'CE' | 'TR', numero_identificacion?: string) => {
     try {
       set({ status: 'checking', error: undefined, isAuthenticated: false });
       
@@ -81,13 +81,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         nombreCompleto, 
         email, 
         password, 
-        telefono 
+        telefono,
+        tipo_identificacion,
+        numero_identificacion
       };
       const response = await authApi.register(registerData);
       
       if (response.success && response.data) {
         // Autenticar automáticamente después del registro
         console.log('✅ Registro exitoso. Autenticando usuario...');
+        
+        // Si hay una advertencia, loguearla
+        if (response.warning) {
+          console.log('⚠️ ADVERTENCIA:', response.warning);
+        }
+        
         return await get().changeStatus(response.data.token, response.data.user);
       } else {
         set({ 

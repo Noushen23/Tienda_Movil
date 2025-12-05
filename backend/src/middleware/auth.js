@@ -17,9 +17,29 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, config.jwt.secret, (err, user) => {
     if (err) {
+      console.error('❌ Error al verificar token JWT:', err.message);
       return res.status(403).json({
         success: false,
         message: 'Token inválido o expirado'
+      });
+    }
+
+    // Validar que el token decodificado tenga el id
+    if (!user || !user.id) {
+      console.error('❌ Error: Token decodificado no contiene id');
+      console.error('Token payload:', JSON.stringify(user, null, 2));
+      return res.status(403).json({
+        success: false,
+        message: 'Token inválido: falta información del usuario'
+      });
+    }
+
+    // Log para depuración (solo en desarrollo)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Usuario autenticado:', {
+        id: user.id,
+        email: user.email,
+        rol: user.rol
       });
     }
 

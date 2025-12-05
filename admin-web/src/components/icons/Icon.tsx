@@ -10,6 +10,7 @@ import { PencilIcon } from './PencilIcon';
 import { TrashIcon } from './TrashIcon';
 import { ExclamationTriangleIcon } from './ExclamationTriangleIcon';
 import { ShoppingBagIcon } from './ShoppingBagIcon';
+import { RouteIcon } from './RouteIcon';
 import { IconProps } from './types';
 
 /**
@@ -27,7 +28,8 @@ export type IconName =
   | 'pencil'
   | 'trash'
   | 'exclamation-triangle'
-  | 'shopping-bag';
+  | 'shopping-bag'
+  | 'route';
 
 interface IconComponentProps extends IconProps {
   /**
@@ -52,6 +54,7 @@ const iconMap = {
   trash: TrashIcon,
   'exclamation-triangle': ExclamationTriangleIcon,
   'shopping-bag': ShoppingBagIcon,
+  route: RouteIcon,
 } as const;
 
 /**

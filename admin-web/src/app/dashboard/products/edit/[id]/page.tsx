@@ -17,7 +17,7 @@ export default function EditProductPage() {
       try {
         const response = await AdminProductsService.getProduct(productId)
         return response.data
-      } catch (error) {
+      } catch {
         throw new Error('Producto no encontrado')
       }
     },

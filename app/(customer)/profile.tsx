@@ -17,7 +17,7 @@ import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { CartIndicator } from '@/presentation/cart/components/CartIndicator';
 import { useAuthStore } from '@/presentation/auth/store/useAuthStore';
-import { useProfile, useProfileStats } from '@/presentation/profile/hooks/useProfile';
+import { useProfile, useProfileStats, useUpdateUserInfo, useChangePassword, useRequestChangeEmail, useVerifyChangeEmail } from '@/presentation/profile/hooks/useProfile';
 import { ProfileHeader } from '@/presentation/profile/components/ProfileHeader';
 import { ProfileStats } from '@/presentation/profile/components/ProfileStats';
 import { PersonalInfo } from '@/presentation/profile/components/PersonalInfo';
@@ -40,6 +40,10 @@ export default function ProfileScreen() {
   // Hooks para obtener datos del perfil
   const { data: profileData, isLoading: profileLoading, refetch: refetchProfile } = useProfile();
   const { data: profileStats, isLoading: statsLoading, refetch: refetchStats } = useProfileStats();
+  const updateUserInfoMutation = useUpdateUserInfo();
+  const changePasswordMutation = useChangePassword();
+  const requestChangeEmailMutation = useRequestChangeEmail();
+  const verifyChangeEmailMutation = useVerifyChangeEmail();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -77,6 +81,303 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditNombre = () => {
+    Alert.prompt(
+      'Editar Nombre',
+      'Ingresa tu nombre completo:',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Guardar',
+          onPress: (nombre?: string) => {
+            if (nombre && nombre.trim()) {
+              updateUserInfoMutation.mutate({ nombreCompleto: nombre.trim() });
+            }
+          },
+        },
+      ],
+      'plain-text',
+      user?.nombreCompleto || ''
+    );
+  };
+
+  const handleEditDocumento = () => {
+    // Primero seleccionar el tipo de documento
+    Alert.alert(
+      'Editar Documento',
+      'Selecciona el tipo de documento:',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'CC',
+          onPress: () => {
+            Alert.prompt(
+              'Número de Cédula',
+              'Ingresa tu número de cédula:',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Guardar',
+                  onPress: (numero?: string) => {
+                    if (numero && numero.trim()) {
+                      updateUserInfoMutation.mutate({
+                        tipoIdentificacion: 'CC',
+                        numeroIdentificacion: numero.trim(),
+                      });
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+              user?.numeroIdentificacion || ''
+            );
+          },
+        },
+        {
+          text: 'NIT',
+          onPress: () => {
+            Alert.prompt(
+              'Número de NIT',
+              'Ingresa tu número de NIT:',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Guardar',
+                  onPress: (numero?: string) => {
+                    if (numero && numero.trim()) {
+                      updateUserInfoMutation.mutate({
+                        tipoIdentificacion: 'NIT',
+                        numeroIdentificacion: numero.trim(),
+                      });
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+              user?.numeroIdentificacion || ''
+            );
+          },
+        },
+        {
+          text: 'CE',
+          onPress: () => {
+            Alert.prompt(
+              'Número de Cédula de Extranjería',
+              'Ingresa tu número de cédula de extranjería:',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Guardar',
+                  onPress: (numero?: string) => {
+                    if (numero && numero.trim()) {
+                      updateUserInfoMutation.mutate({
+                        tipoIdentificacion: 'CE',
+                        numeroIdentificacion: numero.trim(),
+                      });
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+              user?.numeroIdentificacion || ''
+            );
+          },
+        },
+        {
+          text: 'TR',
+          onPress: () => {
+            Alert.prompt(
+              'Número de Tarjeta de Identidad',
+              'Ingresa tu número de tarjeta de identidad:',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Guardar',
+                  onPress: (numero?: string) => {
+                    if (numero && numero.trim()) {
+                      updateUserInfoMutation.mutate({
+                        tipoIdentificacion: 'TR',
+                        numeroIdentificacion: numero.trim(),
+                      });
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+              user?.numeroIdentificacion || ''
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleChangePassword = () => {
+    // Evitar múltiples llamadas simultáneas
+    if (changePasswordMutation.isPending) {
+      Alert.alert('Espera', 'Ya hay un cambio de contraseña en proceso. Por favor espera.');
+      return;
+    }
+
+    // Primero pedir la contraseña actual
+    Alert.prompt(
+      'Cambiar Contraseña',
+      'Ingresa tu contraseña actual:',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          onPress: (currentPassword?: string) => {
+            if (!currentPassword || !currentPassword.trim()) {
+              Alert.alert('Error', 'Debes ingresar tu contraseña actual');
+              return;
+            }
+
+            // Luego pedir la nueva contraseña
+            Alert.prompt(
+              'Nueva Contraseña',
+              'Ingresa tu nueva contraseña:\n\nDebe tener al menos 6 caracteres, incluir una mayúscula, una minúscula y un número.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Continuar',
+                  onPress: (newPassword?: string) => {
+                    if (!newPassword || !newPassword.trim()) {
+                      Alert.alert('Error', 'Debes ingresar una nueva contraseña');
+                      return;
+                    }
+
+                    if (newPassword.length < 6) {
+                      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
+                      return;
+                    }
+
+                    // Validar formato de contraseña
+                    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+                    if (!passwordRegex.test(newPassword)) {
+                      Alert.alert(
+                        'Error',
+                        'La contraseña debe contener al menos:\n• Una mayúscula\n• Una minúscula\n• Un número'
+                      );
+                      return;
+                    }
+
+                    // Confirmar nueva contraseña
+                    Alert.prompt(
+                      'Confirmar Nueva Contraseña',
+                      'Confirma tu nueva contraseña:',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Cambiar',
+                          onPress: (confirmPassword?: string) => {
+                            if (!confirmPassword || confirmPassword !== newPassword) {
+                              Alert.alert('Error', 'Las contraseñas no coinciden');
+                              return;
+                            }
+
+                            // Verificar que no haya una mutación en proceso antes de ejecutar
+                            if (changePasswordMutation.isPending) {
+                              Alert.alert('Espera', 'Ya hay un cambio de contraseña en proceso. Por favor espera.');
+                              return;
+                            }
+
+                            // Cambiar contraseña
+                            changePasswordMutation.mutate({
+                              currentPassword: currentPassword.trim(),
+                              newPassword: newPassword.trim(),
+                            });
+                          },
+                        },
+                      ],
+                      'secure-text'
+                    );
+                  },
+                },
+              ],
+              'secure-text'
+            );
+          },
+        },
+      ],
+      'secure-text'
+    );
+  };
+
+  const handleChangeEmail = () => {
+    // Evitar múltiples llamadas simultáneas
+    if (requestChangeEmailMutation.isPending || verifyChangeEmailMutation.isPending) {
+      Alert.alert('Espera', 'Ya hay un cambio de email en proceso. Por favor espera.');
+      return;
+    }
+
+    // Primero pedir el nuevo email
+    Alert.prompt(
+      'Cambiar Email',
+      'Ingresa tu nuevo email:',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          onPress: (newEmail?: string) => {
+            if (!newEmail || !newEmail.trim()) {
+              Alert.alert('Error', 'Debes ingresar un email válido');
+              return;
+            }
+
+            // Validar formato de email básico
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newEmail.trim())) {
+              Alert.alert('Error', 'El formato del email no es válido');
+              return;
+            }
+
+            // Verificar que el nuevo email sea diferente al actual
+            if (user?.email && user.email.toLowerCase() === newEmail.trim().toLowerCase()) {
+              Alert.alert('Error', 'El nuevo email debe ser diferente al email actual');
+              return;
+            }
+
+            // Solicitar cambio de email (enviar código)
+            requestChangeEmailMutation.mutate(newEmail.trim(), {
+              onSuccess: () => {
+                // Después de enviar el código, pedir el código de verificación
+                Alert.prompt(
+                  'Código de Verificación',
+                  'Hemos enviado un código de verificación a tu nuevo email. Ingresa el código:',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Verificar',
+                      onPress: (code?: string) => {
+                        if (!code || !code.trim()) {
+                          Alert.alert('Error', 'Debes ingresar el código de verificación');
+                          return;
+                        }
+
+                        // Validar que el código tenga 6 dígitos
+                        if (!/^\d{6}$/.test(code.trim())) {
+                          Alert.alert('Error', 'El código debe tener 6 dígitos');
+                          return;
+                        }
+
+                        // Verificar código y cambiar email
+                        verifyChangeEmailMutation.mutate(code.trim());
+                      },
+                    },
+                  ],
+                  'plain-text'
+                );
+              },
+            });
+          },
+        },
+      ],
+      'plain-text',
+      undefined,
+      'email-address'
+    );
+  };
 
   const menuItems = [
     {
@@ -96,6 +397,18 @@ export default function ProfileScreen() {
       title: 'Mis Pedidos',
       subtitle: 'Historial de compras y pedidos',
       onPress: () => router.push('/(customer)/orders' as any),
+    },
+    {
+      icon: 'lock-closed-outline',
+      title: 'Cambiar Contraseña',
+      subtitle: 'Actualiza tu contraseña de acceso',
+      onPress: handleChangePassword,
+    },
+    {
+      icon: 'mail-outline',
+      title: 'Cambiar Email',
+      subtitle: 'Actualiza tu dirección de email',
+      onPress: handleChangeEmail,
     },
     {
       icon: 'information-circle-outline',
@@ -154,9 +467,9 @@ export default function ProfileScreen() {
         }
       >
         {/* Header del perfil */}
-        {profileData?.hasProfile && profileData.profile ? (
+        {(profileData as any)?.hasProfile && (profileData as any)?.profile ? (
           <ProfileHeader 
-            profile={profileData.profile}
+            profile={(profileData as any).profile}
           />
         ) : (
           /* Header básico para usuarios sin perfil completo */
@@ -174,27 +487,8 @@ export default function ProfileScreen() {
                 <ThemedText style={styles.basicUserEmail}>
                   {user?.email || 'email@ejemplo.com'}
                 </ThemedText>
-                <View style={styles.completeProfilePrompt}>
-                  <Ionicons name="information-circle-outline" size={16} color="#FF9800" />
-                  <ThemedText style={styles.completeProfileText}>
-                    Completa tu perfil para una mejor experiencia
-                  </ThemedText>
-                </View>
               </View>
             </View>
-            
-            <TouchableOpacity
-              style={[styles.completeProfileButton, { backgroundColor: tintColor }]}
-              onPress={() => {
-                Alert.alert('Próximamente', 'La edición de perfil estará disponible pronto');
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="person-add-outline" size={20} color="white" />
-              <ThemedText style={styles.completeProfileButtonText}>
-                Completar Perfil
-              </ThemedText>
-            </TouchableOpacity>
           </View>
         )}
 
@@ -231,7 +525,12 @@ export default function ProfileScreen() {
           <ThemedText style={styles.sectionTitle}>Información de Cuenta</ThemedText>
           
           <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
+            <TouchableOpacity 
+              style={styles.infoRow}
+              onPress={handleEditNombre}
+              activeOpacity={0.7}
+              disabled={updateUserInfoMutation.isPending}
+            >
               <View style={styles.infoIcon}>
                 <Ionicons name="person-outline" size={20} color={tintColor} />
               </View>
@@ -241,7 +540,13 @@ export default function ProfileScreen() {
                   {user?.nombreCompleto || 'No especificado'}
                 </ThemedText>
               </View>
-            </View>
+              <TouchableOpacity 
+                onPress={handleEditNombre}
+                disabled={updateUserInfoMutation.isPending}
+              >
+                <Ionicons name="create-outline" size={20} color={tintColor} />
+              </TouchableOpacity>
+            </TouchableOpacity>
             
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
@@ -254,6 +559,31 @@ export default function ProfileScreen() {
                 </ThemedText>
               </View>
             </View>
+            
+            <TouchableOpacity 
+              style={styles.infoRow}
+              onPress={handleEditDocumento}
+              activeOpacity={0.7}
+              disabled={updateUserInfoMutation.isPending}
+            >
+              <View style={styles.infoIcon}>
+                <Ionicons name="card-outline" size={20} color={tintColor} />
+              </View>
+              <View style={styles.infoContent}>
+                <ThemedText style={styles.infoLabel}>Documento</ThemedText>
+                <ThemedText style={styles.infoValue}>
+                  {user?.tipoIdentificacion && user?.numeroIdentificacion
+                    ? `${user.tipoIdentificacion} ${user.numeroIdentificacion}`
+                    : 'No especificado'}
+                </ThemedText>
+              </View>
+              <TouchableOpacity 
+                onPress={handleEditDocumento}
+                disabled={updateUserInfoMutation.isPending}
+              >
+                <Ionicons name="create-outline" size={20} color={tintColor} />
+              </TouchableOpacity>
+            </TouchableOpacity>
             
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
@@ -289,8 +619,8 @@ export default function ProfileScreen() {
         </View>
 
         {/* Información personal */}
-        {profileData?.hasProfile && profileData.profile && (
-          <PersonalInfo profile={profileData.profile} />
+        {(profileData as any)?.hasProfile && (profileData as any)?.profile && (
+          <PersonalInfo profile={(profileData as any).profile} />
         )}
 
 
@@ -486,7 +816,6 @@ const styles = StyleSheet.create({
   basicProfileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
     width: '100%',
   },
   basicAvatar: {
@@ -513,35 +842,6 @@ const styles = StyleSheet.create({
   basicUserEmail: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
-  },
-  completeProfilePrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  completeProfileText: {
-    fontSize: 12,
-    color: '#FF9800',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  completeProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    gap: 8,
-  },
-  completeProfileButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   
   // Estilos para información de usuario

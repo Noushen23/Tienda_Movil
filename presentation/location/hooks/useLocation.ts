@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { Alert } from 'react-native';
+import { normalizeCityForStorage, normalizeDepartmentForStorage, normalizeAddressForStorage } from '@/presentation/utils/normalization';
 
 export interface LocationData {
   latitude: number;
@@ -142,14 +143,35 @@ export const useLocation = (options: UseLocationOptions = {}) => {
 
       if (addresses.length > 0) {
         const addr = addresses[0];
+        
+        // Normalizar datos obtenidos del GPS
+        const rawAddress = `${addr.street || ''} ${addr.streetNumber || ''}`.trim() || 'Dirección no disponible';
+        const rawCity = addr.city || addr.subregion || 'Ciudad no disponible';
+        const rawDepartment = addr.region || addr.district || 'Departamento no disponible';
+        const rawCountry = addr.country || 'Colombia';
+        
+        console.log('🏙️ Datos GPS originales:', {
+          address: rawAddress,
+          city: rawCity,
+          department: rawDepartment,
+          country: rawCountry
+        });
+        
         const addressData: AddressData = {
-          address: `${addr.street || ''} ${addr.streetNumber || ''}`.trim() || 'Dirección no disponible',
-          city: addr.city || addr.subregion || 'Ciudad no disponible',
-          department: addr.region || addr.district || 'Departamento no disponible',
-          country: addr.country || 'Colombia',
+          address: normalizeAddressForStorage(rawAddress),
+          city: normalizeCityForStorage(rawCity),
+          department: normalizeDepartmentForStorage(rawDepartment),
+          country: normalizeCityForStorage(rawCountry),
           postalCode: addr.postalCode || undefined,
           coordinates
         };
+        
+        console.log('🔤 Datos GPS normalizados:', {
+          address: addressData.address,
+          city: addressData.city,
+          department: addressData.department,
+          country: addressData.country
+        });
 
         setAddress(addressData);
         return addressData;

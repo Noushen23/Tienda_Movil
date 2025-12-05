@@ -23,23 +23,52 @@ const config = {
   
   // Configuración CORS
   cors: {
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [
-      'http://localhost:3000', 
-      'http://localhost:8081',
-      'http://localhost:19006', // Expo web
-      'http://192.168.3.104:3000', // Admin web
-      'http://192.168.3.104:3001',   // Android emulator
-      'http://192.168.3.104:3001', // IP local para dispositivos físicos
-      /^http:\/\/192\.168\.\d+\.\d+:3000$/, // Patrón para Admin Web en IPs locales
-      /^http:\/\/192\.168\.\d+\.\d+:3001$/, // Patrón para API en IPs locales
-      /^http:\/\/10\.0\.2\.\d+:3001$/, // Patrón para Android emulator
-      /^http:\/\/localhost:\d+$/, // Cualquier puerto localhost
-      /^http:\/\/127\.0\.0\.1:\d+$/ // Cualquier puerto 127.0.0.1
-    ],
+    origin: function (origin, callback) {
+      // Permitir requests sin origin (ej: mobile apps, Postman)
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = [
+        'http://localhost:3000', 
+        'http://localhost:8081',
+        'http://localhost:19006', // Expo web
+        'http://192.168.3.104:3000', // Admin web específico
+        'http://192.168.3.104:3001', // Android emulator
+      ];
+      
+      // Patrones para IPs locales
+      const patterns = [
+        /^http:\/\/192\.168\.\d+\.\d+:3000$/, // Admin Web en IPs locales
+        /^http:\/\/192\.168\.\d+\.\d+:3001$/, // API en IPs locales
+        /^http:\/\/10\.0\.2\.\d+:3001$/, // Android emulator
+        /^http:\/\/localhost:\d+$/, // Cualquier puerto localhost
+        /^http:\/\/127\.0\.0\.1:\d+$/ // Cualquier puerto 127.0.0.1
+      ];
+      
+      // Verificar origins específicos
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // Verificar patrones
+      for (const pattern of patterns) {
+        if (pattern.test(origin)) {
+          return callback(null, true);
+        }
+      }
+      
+      // En desarrollo, permitir cualquier origin
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+      
+      // En producción, rechazar origins no permitidos
+      callback(new Error('No permitido por CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-    exposedHeaders: ['Content-Length', 'Content-Type', 'Cache-Control']
+    exposedHeaders: ['Content-Length', 'Content-Type', 'Cache-Control'],
+    optionsSuccessStatus: 200
   },
   
   // Configuración de la aplicación
@@ -51,15 +80,14 @@ const config = {
   
   // Configuración de email (opcional)
   email: {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-    from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@tiendamovil.com',
-    supportEmail: process.env.SUPPORT_EMAIL || process.env.SMTP_USER || 'support@tiendamovil.com',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    user: process.env.SMTP_USER || 'angeldavidcapa@gmail.com',
+    pass: process.env.SMTP_PASS || 'idot czou irjt pouq',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || 'angeldavidcapa@gmail.com',
+    supportEmail: process.env.SUPPORT_EMAIL || process.env.SMTP_USER || 'angeldavidcapa@gmail.com',
     enabled: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
   },
-  
   // Configuración de archivos
   uploads: {
     maxFileSize: 5 * 1024 * 1024, // 5MB
@@ -75,6 +103,25 @@ const config = {
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 1000, // máximo 1000 requests por IP por ventana (aumentado para desarrollo)
     message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
+  },
+
+  
+
+  // Configuración de la API de Terceros
+  terceroApi: {
+    url: process.env.TERCERO_API_URL || 'http://localhost:51255',
+    token: process.env.TERCERO_API_TOKEN || 'angeldavidcapa2025'
+  },
+
+  // Configuración de APIs de Mapas
+  maps: {
+    provider: process.env.MAPS_PROVIDER || 'google', // 'google' o 'mapbox'
+    google: {
+      apiKey: process.env.GOOGLE_MAPS_API_KEY || ''
+    },
+    mapbox: {
+      accessToken: process.env.MAPBOX_ACCESS_TOKEN || ''
+    }
   }
 };
 

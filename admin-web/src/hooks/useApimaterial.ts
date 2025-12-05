@@ -7,7 +7,7 @@ export function useMaterialesTNS(filters?: MaterialFilters) {
     () => ApimaterialService.getMateriales(filters),
     {
       staleTime: 2 * 60 * 1000, // 2 minutos
-      cacheTime: 5 * 60 * 1000, // 5 minutos
+      gcTime: 5 * 60 * 1000, // 5 minutos
       enabled: true,
     }
   )
@@ -19,7 +19,7 @@ export function useMaterialTNS(id: number, conPrecios: boolean = true) {
     () => ApimaterialService.getMaterialById(id, conPrecios),
     {
       staleTime: 5 * 60 * 1000, // 5 minutos
-      cacheTime: 10 * 60 * 1000, // 10 minutos
+      gcTime: 10 * 60 * 1000, // 10 minutos
     }
   )
 }
@@ -30,7 +30,7 @@ export function useMaterialByCodigoTNS(codigo: string, conPrecios: boolean = tru
     () => ApimaterialService.getMaterialByCodigo(codigo, conPrecios),
     {
       staleTime: 5 * 60 * 1000, // 5 minutos
-      cacheTime: 10 * 60 * 1000, // 10 minutos
+      gcTime: 10 * 60 * 1000, // 10 minutos
     }
   )
 }
@@ -41,8 +41,7 @@ export function useApimaterialConnection() {
     () => ApimaterialService.checkConnection(),
     {
       staleTime: 30 * 1000, // 30 segundos
-      cacheTime: 2 * 60 * 1000, // 2 minutos
-      refetchInterval: 60 * 1000, // Refetch cada minuto
+      gcTime: 2 * 60 * 1000, // 2 minutos
     }
   )
 }
@@ -53,7 +52,7 @@ export function useApimaterialSystemInfo() {
     () => ApimaterialService.getSystemInfo(),
     {
       staleTime: 5 * 60 * 1000, // 5 minutos
-      cacheTime: 10 * 60 * 1000, // 10 minutos
+      gcTime: 10 * 60 * 1000, // 10 minutos
     }
   )
 }

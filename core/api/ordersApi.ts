@@ -18,6 +18,7 @@ export interface OrderItem {
 }
 
 export interface ShippingAddress {
+  id?: number;
   nombreDestinatario: string;
   telefono?: string;
   direccion: string;

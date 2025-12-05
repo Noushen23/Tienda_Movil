@@ -74,8 +74,6 @@ class NotificationController {
         [subscriptionId, userId, productId]
       );
 
-      console.log(`✅ Usuario ${userId} suscrito a notificaciones de stock del producto ${productId}`);
-
       return res.status(201).json({
         success: true,
         message: 'Te notificaremos cuando este producto esté disponible',
@@ -116,8 +114,6 @@ class NotificationController {
           message: 'No se encontró suscripción activa'
         });
       }
-
-      console.log(`✅ Usuario ${userId} canceló suscripción de stock del producto ${productId}`);
 
       return res.status(200).json({
         success: true,
@@ -232,8 +228,6 @@ class NotificationController {
         [subscriptionId, userId, productId, targetPrice, product.precio]
       );
 
-      console.log(`✅ Usuario ${userId} suscrito a alertas de precio del producto ${productId}`);
-
       return res.status(201).json({
         success: true,
         message: `Te notificaremos cuando el precio baje a $${targetPrice.toLocaleString()} o menos`,
@@ -276,8 +270,6 @@ class NotificationController {
           message: 'No se encontró suscripción activa'
         });
       }
-
-      console.log(`✅ Usuario ${userId} canceló suscripción de precio del producto ${productId}`);
 
       return res.status(200).json({
         success: true,
@@ -501,6 +493,7 @@ class NotificationController {
       });
     }
   }
+
 }
 
 module.exports = new NotificationController();

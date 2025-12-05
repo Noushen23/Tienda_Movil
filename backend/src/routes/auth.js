@@ -15,9 +15,9 @@ router.get('/status', authenticateToken, AuthController.getStatus);
 router.post('/logout', authenticateToken, AuthController.logout);
 router.post('/change-password', authenticateToken, validateChangePassword, AuthController.changePassword);
 
-// Rutas de verificación de email (protegidas)
-router.post('/resend-verification', authenticateToken, emailVerificationController.resendVerificationEmail);
-router.post('/verify-email', authenticateToken, emailVerificationController.verifyEmail);
+// Rutas de verificación de email
 router.get('/verification-status', authenticateToken, emailVerificationController.getVerificationStatus);
+router.post('/verify-email', authenticateToken, emailVerificationController.verifyEmail);
+router.post('/resend-verification', authenticateToken, emailVerificationController.resendVerificationEmail);
 
 module.exports = router;

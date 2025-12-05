@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { productsApi, ProductFilters } from '@/core/api/productsApi';
 import { PAGINATION, CACHE_TIMES } from '@/constants/App';
 
-export const useProducts = (filters: ProductFilters = {}) => {
+export const useProducts = (filters: ProductFilters = {}, options?: { enabled?: boolean }) => {
   const productsQuery = useInfiniteQuery({
     queryKey: ['products', 'infinite', filters],
     queryFn: async ({ pageParam = 1 }) => {
@@ -25,6 +25,7 @@ export const useProducts = (filters: ProductFilters = {}) => {
       const totalPages = lastPage?.pagination?.totalPages || 0;
       return currentPage < totalPages ? currentPage + 1 : undefined;
     },
+    enabled: options?.enabled !== false,
   });
 
   return {

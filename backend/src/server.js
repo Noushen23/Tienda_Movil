@@ -20,6 +20,18 @@ const profileRoutes = require('./routes/profile');
 const shippingAddressRoutes = require('./routes/shippingAddresses');
 const dashboardRoutes = require('./routes/dashboard');
 const notificationRoutes = require('./routes/notificationRoutes');
+const searchRoutes = require('./routes/searchRoutes');
+const reviewRoutes = require('./routes/reviews');
+const favoriteRoutes = require('./routes/favorites');
+// const advisorRoutes = require('./routes/advisor'); // COMENTADO - MÓDULO DE ASESOR NO EN USO
+const deliveryRoutes = require('./routes/delivery');
+const rutasRoutes = require('./routes/rutas');
+// const reportsRoutes = require('./routes/reportsold');
+const repartidoresRoutes = require('./routes/repartidores');
+
+// const { initAdvisorModule } = require('./services/advisorService'); // COMENTADO - MÓDULO DE ASESOR NO EN USO
+const { ensureDeliveryTables } = require('./services/deliveryService');
+const usersRoutes = require('./routes/users');
 
 // Crear aplicación Express
 const app = express();
@@ -138,7 +150,16 @@ app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/profile', profileRoutes);
 app.use('/api/v1/shipping-addresses', shippingAddressRoutes);
 app.use('/api/v1/admin/dashboard', dashboardRoutes);
+app.use('/api/v1/admin/users', usersRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+// app.use('/api/v1/advisor', advisorRoutes); // COMENTADO - MÓDULO DE ASESOR NO EN USO
+app.use('/api/v1/delivery', deliveryRoutes);
+app.use('/api/v1/rutas', rutasRoutes);
+// app.use('/api/v1/reports', reportsRoutes);
+app.use('/api/v1/repartidores', repartidoresRoutes);
+app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/favorites', favoriteRoutes);
 
 // Rutas de compatibilidad (sin v1)
 app.use('/api/auth', authRoutes);
@@ -149,7 +170,16 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/shipping-addresses', shippingAddressRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
+app.use('/api/admin/users', usersRoutes);
 app.use('/api/notifications', notificationRoutes);
+// app.use('/api/advisor', advisorRoutes); // COMENTADO - MÓDULO DE ASESOR NO EN USO
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/rutas', rutasRoutes);
+// app.use('/api/reports', reportsRoutes);
+app.use('/api/repartidores', repartidoresRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/favorites', favoriteRoutes);
 
 // Ruta raíz de la API
 app.get('/api/v1', (req, res) => {
@@ -166,6 +196,8 @@ app.get('/api/v1', (req, res) => {
       cart: '/api/v1/cart',
       profile: '/api/v1/profile',
       shippingAddresses: '/api/v1/shipping-addresses',
+      reviews: '/api/v1/reviews',
+      favorites: '/api/v1/favorites',
       health: '/health'
     }
   });
@@ -202,6 +234,12 @@ const startServer = async () => {
   try {
     await initDatabase();
     console.log('✅ Base de datos inicializada');
+
+    // await initAdvisorModule(); // COMENTADO - MÓDULO DE ASESOR NO EN USO
+    // console.log('🧭 Módulo de asesor preparado');
+
+    await ensureDeliveryTables();
+    console.log('🚚 Módulo de delivery preparado');
 
     // Iniciar worker de notificaciones
     const notificationWorker = require('./workers/notificationWorker');

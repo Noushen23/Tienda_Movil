@@ -295,6 +295,90 @@ class EmailService {
   }
 
   /**
+   * Enviar email de cambio de email con código de verificación
+   */
+  async sendChangeEmailVerification(email, nombre, codigo) {
+    try {
+      // En modo desarrollo sin configuración SMTP, simular envío
+      if (!this.transporter) {
+        console.log('📧 [SIMULACIÓN] Email de cambio de email para:', email);
+        console.log('📧 [SIMULACIÓN] Código:', codigo);
+        console.log('📧 [SIMULACIÓN] Nombre:', nombre);
+        return {
+          success: true,
+          message: 'Email simulado (modo desarrollo)',
+          messageId: 'simulated-' + Date.now(),
+        };
+      }
+
+      const changeEmailHtml = `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; }
+            .content { padding: 40px 30px; }
+            .code { background: #f8f9fa; border: 2px dashed #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0; }
+            .code-number { font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; }
+            .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 Cambio de Email</h1>
+            </div>
+            <div class="content">
+              <p>¡Hola ${nombre}!</p>
+              <p>Has solicitado cambiar tu dirección de email. Para completar el cambio, ingresa el siguiente código de verificación:</p>
+              <div class="code">
+                <div class="code-number">${codigo}</div>
+              </div>
+              <div class="warning">
+                <strong>⚠️ Importante:</strong> Este código es válido por 30 minutos. Si no solicitaste este cambio, puedes ignorar este correo.
+              </div>
+              <p>Si no solicitaste este cambio, contacta con nuestro equipo de soporte inmediatamente.</p>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} ${config.app.name}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const mailOptions = {
+        from: `"${config.app.name}" <${config.email.from}>`,
+        to: email,
+        subject: `Código de verificación para cambio de email - ${config.app.name}`,
+        html: changeEmailHtml,
+        text: `Hola ${nombre},\n\nHas solicitado cambiar tu dirección de email en ${config.app.name}.\n\nTu código de verificación es: ${codigo}\n\nEste código es válido por 30 minutos.\n\nSi no solicitaste este cambio, puedes ignorar este correo.\n\nSaludos,\nEl equipo de ${config.app.name}`,
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+
+      console.log('✅ Email de cambio de email enviado:', info.messageId);
+
+      return {
+        success: true,
+        message: 'Email enviado correctamente',
+        messageId: info.messageId,
+      };
+    } catch (error) {
+      console.error('❌ Error al enviar email de cambio de email:', error);
+      return {
+        success: false,
+        message: 'Error al enviar el email',
+        error: error.message,
+      };
+    }
+  }
+
+  /**
    * Enviar email de bienvenida después de verificación exitosa
    */
   async sendWelcomeEmail(email, nombre) {
@@ -357,6 +441,31 @@ class EmailService {
 
 // Exportar instancia única del servicio
 module.exports = new EmailService();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

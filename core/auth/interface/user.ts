@@ -4,6 +4,8 @@ export interface User {
   nombreCompleto: string;
   telefono?: string;
   direccion?: string;
+  tipoIdentificacion?: 'CC' | 'NIT' | 'CE' | 'TR';
+  numeroIdentificacion?: string;
   rol: 'cliente' | 'admin' | 'vendedor';
   emailVerificado: boolean;
   fechaCreacion: string;

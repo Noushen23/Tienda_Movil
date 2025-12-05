@@ -14,6 +14,7 @@ class Product {
     this.stockMinimo = data.stock_minimo;
     this.activo = data.activo;
     this.destacado = data.destacado;
+    this.esServicio = data.es_servicio ? Boolean(data.es_servicio) : false;
     this.peso = data.peso ? parseFloat(data.peso) : null;
     this.dimensiones = data.dimensiones ? JSON.parse(data.dimensiones) : null;
     this.etiquetas = data.etiquetas ? JSON.parse(data.etiquetas) : null;
@@ -38,6 +39,8 @@ class Product {
       etiquetas,
       codigoBarras,
       sku,
+      esServicio = false,
+      es_servicio = false,
       imagenes = [] // Soporte para imágenes
     } = productData;
 
@@ -50,12 +53,13 @@ class Product {
       await connection.beginTransaction();
       
       // Insertar producto
+      const esServicioValue = esServicio || es_servicio || false;
       const sql = `
         INSERT INTO productos (
           id, nombre, descripcion, precio, precio_oferta, categoria_id,
           stock, stock_minimo, peso, dimensiones, etiquetas,
-          codigo_barras, sku, activo, destacado
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          codigo_barras, sku, activo, destacado, es_servicio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       await connection.execute(sql, [
@@ -73,7 +77,8 @@ class Product {
         codigoBarras || null,
         sku || null,
         true,
-        false
+        false,
+        esServicioValue
       ]);
 
       // Insertar imágenes si se proporcionan
@@ -159,6 +164,27 @@ class Product {
       sql += ' AND p.stock <= p.stock_minimo';
     }
 
+    // Filtro por productos en oferta
+    if (filters.enOferta !== undefined) {
+      if (filters.enOferta === true || filters.enOferta === 'true' || filters.enOferta === '1' || filters.enOferta === 1) {
+        sql += ' AND (p.en_oferta = 1 OR (p.precio_oferta IS NOT NULL AND p.precio_oferta < p.precio))';
+      }
+    }
+
+    // Filtro por servicios
+    if (filters.esServicio !== undefined || filters.es_servicio !== undefined) {
+      const isService = filters.esServicio !== undefined ? filters.esServicio : filters.es_servicio;
+      // Si es_servicio existe en la tabla, usarlo; si no, usar etiquetas como fallback
+      sql += ' AND (p.es_servicio = ? OR (p.es_servicio IS NULL AND p.etiquetas LIKE ?))';
+      params.push(isService ? 1 : 0);
+      if (isService) {
+        params.push('%"servicio"%');
+      } else {
+        sql += ' AND (p.es_servicio IS NULL OR p.etiquetas NOT LIKE ?)';
+        params.push('%"servicio"%');
+      }
+    }
+
     // Ordenamiento
     const orderBy = filters.orderBy || 'fecha_creacion';
     const orderDir = filters.orderDir || 'DESC';
@@ -214,7 +240,7 @@ class Product {
     const allowedFields = [
       'nombre', 'descripcion', 'precio', 'precio_oferta', 'categoria_id',
       'stock', 'stock_minimo', 'peso', 'dimensiones', 'etiquetas',
-      'codigo_barras', 'sku', 'activo', 'destacado'
+      'codigo_barras', 'sku', 'activo', 'destacado', 'es_servicio'
     ];
 
     const updates = [];
@@ -331,14 +357,52 @@ class Product {
     let images = [];
     if (includeImages) {
       const rawImages = await this.getImages();
-      // Generar URLs completas para las imágenes
+      // Generar URLs completas para las imágenes con validación
       const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
-      images = rawImages.map(img => ({
-        ...img,
-        urlImagen: img.url_imagen.startsWith('http') 
-          ? img.url_imagen 
-          : `${baseUrl}${img.url_imagen}`
-      }));
+      images = rawImages.map(img => {
+        // Validar y limpiar URL de imagen
+        let imageUrl = img.url_imagen;
+        
+        // Si no hay URL, saltar esta imagen
+        if (!imageUrl || typeof imageUrl !== 'string') {
+          console.warn('⚠️ URL de imagen inválida en toPublicObject:', imageUrl);
+          return null;
+        }
+        
+        // Limpiar URL de espacios y caracteres especiales
+        imageUrl = imageUrl.trim();
+        
+        // Si ya es una URL completa, validarla
+        if (imageUrl.startsWith('http')) {
+          try {
+            new URL(imageUrl); // Validar URL
+            return {
+              ...img,
+              urlImagen: imageUrl,
+              url: imageUrl // Para compatibilidad con el frontend
+            };
+          } catch (urlError) {
+            console.warn('⚠️ URL de imagen malformada en toPublicObject:', imageUrl);
+            return null;
+          }
+        }
+        
+        // Construir URL completa
+        const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+        const fullUrl = `${baseUrl}${cleanPath}`;
+        
+        try {
+          new URL(fullUrl); // Validar URL construida
+          return {
+            ...img,
+            urlImagen: fullUrl,
+            url: fullUrl // Para compatibilidad con el frontend
+          };
+        } catch (urlError) {
+          console.warn('⚠️ URL construida malformada en toPublicObject:', fullUrl);
+          return null;
+        }
+      }).filter(img => img !== null); // Filtrar imágenes inválidas
     }
 
     // Obtener estadísticas de reseñas si se solicitan
@@ -364,6 +428,8 @@ class Product {
       activo: this.activo,
       isActive: this.activo, // Compatibilidad con frontend
       destacado: this.destacado,
+      esServicio: this.esServicio,
+      es_servicio: this.esServicio, // Alias para compatibilidad
       peso: this.peso,
       dimensiones: this.dimensiones,
       etiquetas: this.etiquetas,

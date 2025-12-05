@@ -18,7 +18,6 @@ class ReviewController {
       const userId = req.user.id;
       const { id: productId } = req.params;
       const { calificacion, comentario, ordenId } = req.body;
-
       // Validaciones adicionales
       if (!calificacion || calificacion < 1 || calificacion > 5) {
         return res.status(400).json({
@@ -180,7 +179,7 @@ class ReviewController {
 
       const userId = req.user.id;
       const { reviewId } = req.params;
-      const { calificacion, comentario } = req.body;
+      const { calificacion, comentario} = req.body;
 
       // Validaciones adicionales
       if (calificacion !== undefined && (calificacion < 1 || calificacion > 5)) {
@@ -208,7 +207,7 @@ class ReviewController {
       }
 
       // Actualizar la reseña
-      const updatedReview = await review.update({ calificacion, comentario });
+      const updatedReview = await review.update({ calificacion, comentario});
 
       res.status(200).json({
         success: true,
@@ -305,6 +304,7 @@ class ReviewController {
         success: true,
         data: {
           canReview: !existingReview,
+          existingReviewId: existingReview ? existingReview.id : null,
           existingReview: existingReview ? existingReview.toPublicObject() : null
         }
       });

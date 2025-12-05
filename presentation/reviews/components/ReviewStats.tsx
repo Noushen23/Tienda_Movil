@@ -13,13 +13,17 @@ import { ReviewStats as ReviewStatsType } from '@/core/api/reviewsApi';
 interface ReviewStatsProps {
   stats: ReviewStatsType;
   onWriteReview?: () => void;
+  onEditReview?: () => void;
   canWriteReview?: boolean;
+  hasExistingReview?: boolean;
 }
 
 export const ReviewStats: React.FC<ReviewStatsProps> = ({ 
   stats, 
   onWriteReview, 
-  canWriteReview = false 
+  onEditReview,
+  canWriteReview = false,
+  hasExistingReview = false
 }) => {
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
@@ -74,7 +78,16 @@ export const ReviewStats: React.FC<ReviewStatsProps> = ({
     <ThemedView style={[styles.container, { backgroundColor }]}>
       <View style={styles.header}>
         <ThemedText style={styles.title}>Calificaciones</ThemedText>
-        {canWriteReview && (
+        {hasExistingReview ? (
+          <TouchableOpacity
+            style={[styles.writeReviewButton, { backgroundColor: tintColor }]}
+            onPress={onEditReview}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="create-outline" size={16} color="white" />
+            <ThemedText style={styles.writeReviewText}>Editar mi reseña</ThemedText>
+          </TouchableOpacity>
+        ) : canWriteReview && (
           <TouchableOpacity
             style={[styles.writeReviewButton, { backgroundColor: tintColor }]}
             onPress={onWriteReview}

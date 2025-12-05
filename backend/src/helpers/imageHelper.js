@@ -5,6 +5,48 @@ const config = require('../config/env');
  */
 class ImageHelper {
   /**
+   * Valida y limpia una URL de imagen
+   * @param {string} imagePath - Ruta o URL de la imagen
+   * @returns {string|null} URL válida o null si es inválida
+   */
+  static validateAndCleanImageUrl(imagePath) {
+    if (!imagePath || typeof imagePath !== 'string') {
+      return null;
+    }
+
+    // Limpiar espacios y caracteres especiales
+    const cleanedPath = imagePath.trim();
+    
+    if (cleanedPath === '') {
+      return null;
+    }
+
+    // Si ya es una URL completa, validarla
+    if (cleanedPath.startsWith('http://') || cleanedPath.startsWith('https://')) {
+      try {
+        new URL(cleanedPath);
+        return cleanedPath;
+      } catch (error) {
+        console.warn('⚠️ URL de imagen malformada:', cleanedPath);
+        return null;
+      }
+    }
+
+    // Construir URL completa
+    const baseUrl = config.apiBaseUrl || 'http://192.168.3.104:3001';
+    const cleanPath = cleanedPath.startsWith('/') ? cleanedPath : `/${cleanedPath}`;
+    const fullUrl = `${baseUrl}${cleanPath}`;
+    
+    try {
+      new URL(fullUrl);
+      return fullUrl;
+    } catch (error) {
+      console.warn('⚠️ URL construida malformada:', fullUrl);
+      return null;
+    }
+  }
+
+  /**
    * Construye la URL completa de una imagen
    * @param {string} imagePath - Ruta relativa de la imagen
    * @returns {string} URL completa de la imagen

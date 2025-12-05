@@ -3,20 +3,20 @@ import { AdminProductsService } from '@/lib/admin-products'
 import { AdminCategoriesService } from '@/lib/admin-categories'
 import { MaterialTNS } from '@/lib/apimaterial-service'
 import { CONFIG } from '@/lib/config'
+import { Gender, Size } from '@/types'
+import { useQueryClient } from '@tanstack/react-query'
 
 // Hook para obtener categorías disponibles
 export function useAvailableCategories() {
   return useOptimizedQuery(
     ['categories'],
     async () => {
-      console.log('🔍 Obteniendo categorías disponibles...')
       const response = await AdminCategoriesService.getCategories()
-      console.log('📋 Categorías obtenidas:', response.data)
       return response.data || []
     },
     {
       staleTime: 5 * 60 * 1000, // 5 minutos
-      cacheTime: 10 * 60 * 1000, // 10 minutos
+      gcTime: 10 * 60 * 1000, // 10 minutos (gcTime reemplaza cacheTime en React Query v5)
     }
   )
 }
@@ -24,87 +24,129 @@ export function useAvailableCategories() {
 // Hook para crear producto desde material Apimaterial con categoría válida
 export function useCreateProductFromApimaterialWithCategory() {
   const { data: categories } = useAvailableCategories()
+  const queryClient = useQueryClient()
   
   return useOptimizedMutation(
     async (material: MaterialTNS) => {
-      console.log('🔄 Creando producto desde material Apimaterial:', material.CODIGO)
+      
+      // Validaciones previas
+      if (!material.CODIGO) {
+        throw new Error('El material no tiene código válido')
+      }
+      
+      if (!material.DESCRIP) {
+        throw new Error('El material no tiene descripción válida')
+      }
+      
+      // Verificar si el producto ya existe
+      try {
+        const existsCheck = await AdminProductsService.checkProductExists(material.CODIGO, material.MATID)
+        
+        if (existsCheck.exists && existsCheck.product) {
+          return {
+            success: false,
+            message: `El producto "${material.DESCRIP}" ya existe con ${existsCheck.searchField}: ${existsCheck.searchValue}`,
+            data: null,
+            material: material,
+            existingProduct: existsCheck.product,
+            duplicateField: existsCheck.searchField,
+            duplicateValue: existsCheck.searchValue
+          }
+        }
+      } catch (error: any) {
+        console.warn('⚠️ Error verificando producto existente:', error.message)
+        // Continuar con la creación si hay error en la verificación
+      }
       
       // Obtener la primera categoría válida
       let categoryId = null
       if (categories && categories.length > 0) {
         categoryId = categories[0].id
-        console.log('📋 Usando categoría:', categories[0].name, 'ID:', categoryId)
       } else {
-        console.log('⚠️ No hay categorías disponibles, creando sin categoría')
+        console.warn('⚠️ No hay categorías disponibles, creando sin categoría')
       }
       
       // Mapear material Apimaterial a datos de producto
       const productData = {
         title: material.DESCRIP || 'Material sin descripción',
-        description: material.OBSERV || `Material ${material.CODIGO} de Apimaterial`,
+        description: material.OBSERV || `Material ${material.CODIGO} `,
         price: material.PRECIO1 || 0,
-        priceOffer: material.PRECIO2 && material.PRECIO2 > 0 ? material.PRECIO2 : null,
-        stock: 0, // Los materiales Apimaterial no tienen stock directo
+        stock: material.EXISTEC || 0,
         categoryId: categoryId,
         isActive: material.INACTIVO !== 'S',
         isFeatured: false,
+        sku: material.CODIGO, // ← AQUÍ se inserta el código en el campo SKU
+        CodVinculacion: material.MATID, // ← AQUÍ se inserta el MATID en CodVinculacion
         tags: [
-          `apimaterial-${material.CODIGO}`,
-          `unidad-${material.UNIDAD}`,
-          'importado-apimaterial'
+          `${material.CODIGO}`,
+          `unidad-${material.UNIDAD}`
         ],
         images: [], // Se pueden agregar imágenes por separado
-        barcode: material.CODIGO,
-        sku: material.CODIGO,
-        weight: null,
-        dimensions: null,
-        sizes: [],
-        gender: 'unisex'
+        gender: Gender.Unisex,
+        sizes: [] as Size[]
       }
       
-      console.log('📋 Datos del producto a crear:', productData)
+      console.log('📋 Datos del producto a crear:', {
+        title: productData.title,
+        price: productData.price,
+        stock: productData.stock,
+        categoryId: productData.categoryId,
+        isActive: productData.isActive,
+        sku: productData.sku,
+        CodVinculacion: productData.CodVinculacion
+      })
       
       try {
         // Crear el producto en MySQL
-        console.log('🚀 ===== INICIANDO CREACIÓN DE PRODUCTO =====')
-        console.log('📋 Material Apimaterial:', material)
-        console.log('📦 Datos del producto a crear:', productData)
-        console.log('🔗 Llamando a AdminProductsService.createProduct...')
         
         const result = await AdminProductsService.createProduct(productData)
-        console.log('✅ ===== PRODUCTO CREADO EXITOSAMENTE =====')
-        console.log('📊 Resultado completo:', result)
+        
+        // Invalidar cache de verificación de productos existentes
+        queryClient.invalidateQueries({
+          queryKey: ['check-product-exists', material.CODIGO, material.MATID]
+        })
+        
+        // También invalidar por SKU individual
+        queryClient.invalidateQueries({
+          queryKey: ['check-product-exists', material.CODIGO]
+        })
+        
+        // Y por CodVinculacion individual
+        queryClient.invalidateQueries({
+          queryKey: ['check-product-exists', undefined, material.MATID]
+        })
         
         return {
           success: true,
           message: `Producto "${material.DESCRIP}" creado exitosamente`,
           data: result,
           material: material,
-          simulated: false
+          productId: result.data?.id
         }
       } catch (error: any) {
-        console.error('❌ ===== ERROR CREANDO PRODUCTO =====')
-        console.error('📋 Material que falló:', material)
-        console.error('📦 Datos que fallaron:', productData)
-        console.error('🚨 Error completo:', error)
-        console.error('📝 Detalles del error:', {
-          message: error.message,
+        console.error('❌ Error creando producto:', {
+          material: material.CODIGO,
+          error: error.message,
           status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers,
-          timeout: error.config?.timeout
+          details: error.response?.data
         })
+        
+        // Mensaje de error más amigable
+        let errorMessage = error.message
+        if (error.response?.status === 409) {
+          errorMessage = `El producto con código ${material.CODIGO} ya existe`
+        } else if (error.response?.status === 400) {
+          errorMessage = error.response?.data?.message || 'Datos de producto inválidos'
+        } else if (!navigator.onLine) {
+          errorMessage = 'Sin conexión a internet'
+        }
         
         return {
           success: false,
-          message: `Error creando producto "${material.DESCRIP}": ${error.message}`,
+          message: `Error: ${errorMessage}`,
           data: null,
           material: material,
-          error: error,
-          simulated: false
+          error: error
         }
       }
     },
@@ -117,17 +159,3 @@ export function useCreateProductFromApimaterialWithCategory() {
     }
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

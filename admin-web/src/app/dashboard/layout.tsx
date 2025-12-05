@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Toaster } from 'react-hot-toast'
 import { authService } from '@/lib/auth'
 import { User } from '@/types'
 import { Sidebar } from '@/components/dashboard/Sidebar'
@@ -18,18 +19,30 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const checkAuth = async () => {
-      console.log('🔍 Dashboard: Verificando autenticación...')
-      const result = await authService.checkStatus()
-      console.log('📋 Dashboard: Resultado de checkStatus:', result)
-      
-      if (result && result.user.roles === 'admin') {
-        console.log('✅ Dashboard: Usuario autenticado como admin')
-        setUser(result.user)
-      } else {
-        console.log('❌ Dashboard: Usuario no autenticado o no es admin, redirigiendo...')
+      try {
+        const result = await authService.checkStatus()
+        
+        if (result && result.user) {
+          // Permitir acceso a admin, moderator y repartidor
+          const allowedRoles: string[] = ['admin', 'moderator', 'repartidor']
+          if (allowedRoles.includes(result.user.roles)) {
+            console.log('✅ Dashboard Layout: Usuario autenticado correctamente')
+            setUser(result.user)
+          } else {
+            console.error('❌ Dashboard Layout: Rol no permitido:', result.user.roles)
+            // Limpiar datos inválidos
+            authService.logout()
+          }
+        } else {
+          console.log('⚠️ Dashboard Layout: No hay usuario autenticado, redirigiendo al login')
+          router.push('/')
+        }
+      } catch (error) {
+        console.error('❌ Dashboard Layout: Error verificando autenticación:', error)
         router.push('/')
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
 
     checkAuth()
@@ -49,11 +62,42 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#fff',
+            color: '#363636',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            borderRadius: '0.5rem',
+            padding: '16px',
+            fontSize: '14px',
+            fontWeight: '500',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+            duration: 5000,
+          },
+        }}
+      />
+      
       <Sidebar />
       <div className="lg:pl-64">
         <Header user={user} />
-        <main className="py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <main className="py-8">
+          <div className="w-full px-6 sm:px-8 lg:px-12 xl:px-16 2xl:px-20">
             {children}
           </div>
         </main>

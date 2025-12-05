@@ -16,13 +16,18 @@ export interface Product {
   stockBajo: boolean;
   activo: boolean;
   destacado: boolean;
+  esServicio?: boolean; // Indica si el producto es un servicio
+  es_servicio?: boolean; // Alias para compatibilidad
   peso?: number;
   dimensiones?: any;
   etiquetas?: string[];
   codigoBarras?: string;
   sku?: string;
+  ventasTotales?: number;
+  calificacionPromedio?: number;
+  totalResenas?: number;
   imagenes?: ProductImage[];
-  images?: string[]; // Compatibilidad con frontend
+  images?: string[];
   fechaCreacion: string;
   fechaActualizacion: string;
 }
@@ -47,10 +52,16 @@ export interface ProductFilters {
   limit?: number;
   categoriaId?: string;
   busqueda?: string;
+  search?: string;
   precioMin?: number;
   precioMax?: number;
+  calificacionMin?: number;
+  enOferta?: boolean;
   destacado?: boolean;
   activo?: boolean;
+  esServicio?: boolean; // Nuevo filtro para servicios
+  es_servicio?: boolean; // Alias alternativo
+  sortBy?: 'recientes' | 'precio_asc' | 'precio_desc' | 'ventas' | 'calificacion' | 'nombre';
   orderBy?: 'fecha_creacion' | 'nombre' | 'precio' | 'stock';
   orderDir?: 'ASC' | 'DESC';
 }
@@ -62,17 +73,45 @@ export interface ProductSearchParams {
   categoriaId?: string;
   precioMin?: number;
   precioMax?: number;
+  calificacionMin?: number;
+  enOferta?: boolean;
+  esServicio?: boolean; // Nuevo filtro para servicios
+  es_servicio?: boolean; // Alias alternativo
+  sortBy?: 'recientes' | 'precio_asc' | 'precio_desc' | 'ventas' | 'calificacion' | 'nombre';
   orderBy?: 'fecha_creacion' | 'nombre' | 'precio' | 'stock';
   orderDir?: 'ASC' | 'DESC';
 }
+
+// Helper para validar URLs de imágenes
+const isValidImageUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  
+  const trimmedUrl = url.trim();
+  if (trimmedUrl === '') return false;
+  
+  try {
+    new URL(trimmedUrl);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // Helper para transformar imágenes del backend al formato del frontend
 export const transformProductImages = (product: Product): Product => {
   if (product.imagenes && Array.isArray(product.imagenes)) {
     product.images = product.imagenes.map(img => {
       // Manejar tanto la nueva estructura como la anterior
-      return img.url || img.urlImagen || img.url_imagen || '';
-    }).filter(url => url !== '');
+      const imageUrl = img.url || img.urlImagen || img.url_imagen || '';
+      
+      // Validar URL antes de incluirla
+      if (isValidImageUrl(imageUrl)) {
+        return imageUrl.trim();
+      }
+      
+      console.warn('⚠️ URL de imagen inválida filtrada:', imageUrl);
+      return null;
+    }).filter(url => url !== null); // Filtrar URLs inválidas
   } else {
     product.images = [];
   }

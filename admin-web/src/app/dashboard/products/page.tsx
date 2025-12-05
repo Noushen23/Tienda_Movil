@@ -2,30 +2,28 @@
 
 import { useState } from 'react'
 import { ProductsTable } from '@/components/products/ProductsTable'
-import { ProductFilters } from '@/components/products/ProductFilters'
-import { AddProductButton } from '@/components/products/AddProductButton'
 import ApimaterialSelector from '@/components/products/ApimaterialSelector'
 import ApimaterialProductNotification from '@/components/products/ApimaterialProductNotification'
-import { Database } from 'lucide-react'
+import { ProductFilters } from '@/components/products/ProductFilters'
+import { Database, ImageIcon } from 'lucide-react'
 
 export default function ProductsPage() {
   const [filters, setFilters] = useState({
     category: 'all',
-    price: 'all',
     stock: 'all'
   })
   
   const [isApimaterialOpen, setIsApimaterialOpen] = useState(false)
   const [productCreationResult, setProductCreationResult] = useState<any>(null)
 
+  // Handler para actualizar filtros
   const handleFiltersChange = (newFilters: {
     category: string
-    price: string
     stock: string
   }) => {
     setFilters(newFilters)
   }
-
+  
   const handleProductCreated = (result: any) => {
     console.log('Producto creado desde Apimaterial:', result)
     setProductCreationResult(result)
@@ -49,12 +47,24 @@ export default function ProductsPage() {
             <Database className="h-4 w-4 mr-2" />
             Crear desde Apimaterial
           </button>
-          <AddProductButton />
+          <a
+            href="/dashboard/products/images"
+            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <ImageIcon className="h-4 w-4 mr-2" />
+            Gestionar Imágenes
+          </a>
         </div>
       </div>
 
+      {/* Filtros rápidos */}
       <ProductFilters onFiltersChange={handleFiltersChange} />
-      <ProductsTable filters={filters} />
+
+      {/* Tabla de productos - key fuerza remount al cambiar filtros */}
+      <ProductsTable 
+        key={`products-${filters.category}-${filters.stock}`}
+        filters={filters} 
+      />
       
       {/* Modal Apimaterial */}
       {isApimaterialOpen && (

@@ -3,7 +3,7 @@ export interface User {
   email: string
   fullName: string
   isActive: boolean
-  roles: 'admin' | 'user' | 'moderator'
+  roles: 'admin' | 'user' | 'moderator' | 'repartidor'
   createdAt: string
   updatedAt: string
 }
@@ -26,27 +26,29 @@ export interface Product {
   title: string
   description: string
   price: number
-  priceOffer?: number
-  onOffer?: boolean
+  priceOffer?: number | undefined
+  onOffer?: boolean | undefined
   images: ProductImage[]
   slug: string
   gender: Gender
   sizes: Size[]
   stock: number
-  minStock?: number
+  minStock?: number | undefined
   tags: string[]
   isActive: boolean
-  isFeatured?: boolean
-  weight?: number
+  isFeatured?: boolean | undefined
+  weight?: number | undefined
   dimensions?: {
     largo?: number
     ancho?: number
     alto?: number
-  } | string
-  barcode?: string
-  sku?: string
-  categoryId?: string
-  category?: Category
+  } | string | undefined
+  barcode?: string | undefined
+  sku?: string | undefined
+  categoryId?: string | null | undefined
+  category?: Category | undefined
+  esServicio?: boolean
+  es_servicio?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -63,8 +65,8 @@ export interface Category {
 
 export enum Gender {
   Kid = 'kid',
-  Men = 'men',
-  Women = 'women',
+  Masculino = 'masculino',
+  Femenino = 'femenino',
   Unisex = 'unisex'
 }
 
@@ -90,7 +92,10 @@ export interface CreateProductRequest {
   tags: string[]
   isActive: boolean
   isFeatured?: boolean
-  categoryId?: string
+  categoryId?: string | null
+  sku?: string
+  esServicio?: boolean
+  es_servicio?: boolean
 }
 
 export interface UpdateProductRequest extends Partial<CreateProductRequest> {
@@ -128,7 +133,7 @@ export interface AuthResponse {
       nombreCompleto: string
       telefono?: string
       direccion?: string
-      rol: 'admin' | 'user' | 'moderator' | 'cliente'
+      rol: 'admin' | 'user' | 'moderator' | 'cliente' | 'repartidor'
       activo: boolean
       emailVerificado: boolean
       fechaCreacion: string
@@ -148,33 +153,4 @@ export interface DashboardStats {
   lowStockProducts: number
   recentOrders: Order[]
   topProducts: Product[]
-}
-
-export interface KardexItem {
-  fecha: string
-  formapago_kardex: string
-  codigo_material: string
-  descripcion_material: string
-  unidad_material: string
-  codigo_formapago: string
-  descripcion_formapago: string
-  total_cantidad: number
-  total_valor: number
-}
-
-export interface KardexResponse {
-  success: boolean
-  data: {
-    filtros: {
-      fecha: string
-      formapago: string
-    }
-    totales: {
-      registros: number
-      cantidadTotal: number
-      valorTotal: number
-    }
-    resultados: KardexItem[]
-  }
-  timestamp: string
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,14 +18,16 @@ import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import ThemedButton from '@/presentation/theme/components/ThemedButton';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { useProduct } from '@/presentation/products/hooks/useProduct';
-import { useCreateReview } from '@/presentation/reviews/hooks/useReviews';
+import { useCreateReview, useUpdateReview, useReview } from '@/presentation/reviews/hooks/useReviews';
 
 export default function WriteReviewScreen() {
-  const { productId } = useLocalSearchParams();
+  const { productId, reviewId} = useLocalSearchParams();
   
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const isEditMode = !!reviewId;
   
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
@@ -35,6 +37,18 @@ export default function WriteReviewScreen() {
   // Obtener información del producto
   const { productQuery } = useProduct(`${productId}`);
   const createReviewMutation = useCreateReview();
+  const updateReviewMutation = useUpdateReview();
+  
+  // Hook para obtener datos de reseña existente en modo edición
+  const { data: existingReview, isLoading: isLoadingReview } = useReview(`${reviewId}`);
+  // Pre-cargar datos de la reseña en modo edición
+ 
+  useEffect(() => {
+    if (isEditMode && existingReview) {
+      setRating(existingReview.calificacion);
+      setComment(existingReview.comentario || '');
+    }
+  }, [isEditMode, existingReview]);
 
   // Validar que se haya seleccionado una calificación
   const isRatingSelected = rating > 0;
@@ -81,34 +95,54 @@ export default function WriteReviewScreen() {
     setIsSubmitting(true);
 
     try {
-      await createReviewMutation.mutateAsync({
-        productId: `${productId}`,
-        data: {
-          calificacion: rating,
-          comentario: comment.trim() || undefined,
-        },
-      });
-
-      // Mostrar confirmación
-      Alert.alert(
-        '✅ Reseña enviada',
-        'Tu reseña ha sido enviada exitosamente. Gracias por tu opinión.',
-        [
-          {
-            text: 'Continuar',
-            onPress: () => {
-              // Navegar de vuelta al producto
-              router.back();
-            },
+      if (isEditMode) {
+        // Actualizar reseña existente
+        await updateReviewMutation.mutateAsync({
+          reviewId: `${reviewId}`,
+          data: {
+            calificacion: rating,
+            comentario: comment.trim() || undefined,
           },
-        ]
-      );
+        });
+
+        Alert.alert(
+          '✅ Reseña actualizada',
+          'Tu reseña ha sido actualizada exitosamente.',
+          [
+            {
+              text: 'Continuar',
+              onPress: () => router.push(`/(customer)/product/${productId}` as any),
+            },
+          ]
+        );
+      } else {
+        // Crear nueva reseña
+        await createReviewMutation.mutateAsync({
+          productId: `${productId}`,
+          data: {
+            calificacion: rating,
+            comentario: comment.trim() || undefined,
+          },
+        });
+
+        Alert.alert(
+          '✅ Reseña enviada',
+          'Tu reseña ha sido enviada exitosamente. Gracias por tu opinión.',
+          [
+            {
+              text: 'Continuar',
+              onPress: () => router.push(`/(customer)/product/${productId}` as any),
+            },
+          ]
+        );
+      }
     } catch (error) {
-      console.error('Error al enviar reseña:', error);
+      console.error('Error al procesar reseña:', error);
       
+      const action = isEditMode ? 'actualizar' : 'enviar';
       Alert.alert(
         'Error',
-        'No se pudo enviar tu reseña. Por favor, intenta nuevamente.',
+        `No se pudo ${action} tu reseña. Por favor, intenta nuevamente.`,
         [{ text: 'Entendido' }]
       );
     } finally {
@@ -116,12 +150,14 @@ export default function WriteReviewScreen() {
     }
   };
 
-  // Mostrar loading si está cargando el producto
-  if (productQuery.isLoading) {
+  // Mostrar loading si está cargando el producto o la reseña (en modo edición)
+  if (productQuery.isLoading || (isEditMode && isLoadingReview)) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor }]}>
         <ActivityIndicator size="large" color={tintColor} />
-        <ThemedText style={styles.loadingText}>Cargando producto...</ThemedText>
+        <ThemedText style={styles.loadingText}>
+          {isEditMode ? 'Cargando reseña...' : 'Cargando producto...'}
+        </ThemedText>
       </View>
     );
   }
@@ -136,7 +172,7 @@ export default function WriteReviewScreen() {
           No se pudo cargar la información del producto.
         </ThemedText>
         <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: tintColor }]}
+          style={[styles.submitButton, { backgroundColor: tintColor }]}
           onPress={() => router.back()}
         >
           <ThemedText style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
@@ -160,7 +196,9 @@ export default function WriteReviewScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         
-        <ThemedText style={styles.headerTitle}>Escribir Reseña</ThemedText>
+        <ThemedText style={styles.headerTitle}>
+          {isEditMode ? 'Editar Reseña' : 'Escribir Reseña'}
+        </ThemedText>
         
         <View style={styles.headerSpacer} />
       </View>
@@ -174,7 +212,7 @@ export default function WriteReviewScreen() {
         <ThemedView style={[styles.productCard, { backgroundColor: cardBackground, borderColor }]}>
           <ThemedText style={styles.productTitle}>{product.nombre}</ThemedText>
           <ThemedText style={styles.productPrice}>
-            ${product.precioFinal.toLocaleString()}
+            ${(product.precioFinal || product.precio || 0).toLocaleString()}
           </ThemedText>
         </ThemedView>
 
@@ -195,7 +233,7 @@ export default function WriteReviewScreen() {
           ]}>
             {getRatingText(rating)}
           </ThemedText>
-        </ThemedView>
+        </ThemedView>      
 
         {/* Comentario */}
         <ThemedView style={[styles.commentCard, { backgroundColor: cardBackground, borderColor }]}>
@@ -237,7 +275,10 @@ export default function WriteReviewScreen() {
             ]}
           >
             <ThemedText style={styles.submitButtonText}>
-              {isSubmitting ? 'Enviando...' : 'Enviar Reseña'}
+              {isSubmitting 
+                ? (isEditMode ? 'Actualizando...' : 'Enviando...') 
+                : (isEditMode ? 'Actualizar Reseña' : 'Enviar Reseña')
+              }
             </ThemedText>
           </TouchableOpacity>
           
@@ -322,7 +363,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    // elevation: 3,
   },
   productTitle: {
     fontSize: 18,
@@ -344,7 +385,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    // elevation: 3,
   },
   sectionTitle: {
     fontSize: 18,
@@ -382,7 +423,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    // elevation: 3,
   },
   textInputContainer: {
     borderWidth: 1,

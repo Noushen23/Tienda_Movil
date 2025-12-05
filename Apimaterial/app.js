@@ -116,7 +116,8 @@ app.get('/api/materiales', auth, async (req, res) => {
         // Query principal
         let query = `
             SELECT FIRST ${limitNum} SKIP ${offset}
-                M.MATID, M.CODIGO, M.DESCRIP, M.UNIDAD,
+                M.MATID, M.CODIGO, M.DESCRIP, M.UNIDAD, 
+                COALESCE(MS.EXISTENC, 0) as EXISTEC,
                 M.GRUPMATID, M.TIPOIVAID, MS.INACTIVO, MS.OBSERV, S.NOMSUC as SUCURSAL_NOMBRE
             FROM MATERIAL M
             LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID
@@ -134,6 +135,7 @@ app.get('/api/materiales', auth, async (req, res) => {
                     COALESCE(MS.PRECIO1, 0) as PRECIO1,
                     COALESCE(MS.PRECIO2, 0) as PRECIO2,
                     COALESCE(MS.PRECIO3, 0) as PRECIO3,
+                    COALESCE(MS.EXISTENC, 0) as EXISTEC,
                     S.NOMSUC as SUCURSAL_NOMBRE
                 FROM MATERIAL M
                 LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID
@@ -191,7 +193,7 @@ app.get('/api/materiales/:id', auth, async (req, res) => {
         
         let query = `
             SELECT M.MATID, M.CODIGO, M.DESCRIP, M.UNIDAD, M.GRUPMATID, 
-                   MS.INACTIVO, M.TIPOIVAID, MS.OBSERV
+                   MS.INACTIVO, M.TIPOIVAID, MS.OBSERV, COALESCE(MS.EXISTENC, 0) as EXISTEC
             FROM MATERIAL M
             LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID
             WHERE M.MATID = ?
@@ -204,6 +206,7 @@ app.get('/api/materiales/:id', auth, async (req, res) => {
                        COALESCE(MS.PRECIO1, 0) as PRECIO1,
                        COALESCE(MS.PRECIO2, 0) as PRECIO2,
                        COALESCE(MS.PRECIO3, 0) as PRECIO3,
+                       COALESCE(MS.EXISTENC, 0) as EXISTEC,
                        S.NOMSUC as SUCURSAL_NOMBRE
                 FROM MATERIAL M
                 LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID
@@ -258,7 +261,7 @@ app.get('/api/materiales/codigo/:codigo', auth, async (req, res) => {
         
         let query = `
             SELECT M.MATID, M.CODIGO, M.DESCRIP, M.UNIDAD, M.GRUPMATID, 
-                   MS.INACTIVO, M.TIPOIVAID, MS.OBSERV
+                   MS.INACTIVO, M.TIPOIVAID, MS.OBSERV, COALESCE(MS.EXISTENC, 0) as EXISTEC
             FROM MATERIAL M
             LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID
             WHERE UPPER(M.CODIGO) = UPPER(?)
@@ -271,6 +274,7 @@ app.get('/api/materiales/codigo/:codigo', auth, async (req, res) => {
                        COALESCE(MS.PRECIO1, 0) as PRECIO1,
                        COALESCE(MS.PRECIO2, 0) as PRECIO2,
                        COALESCE(MS.PRECIO3, 0) as PRECIO3,
+                       COALESCE(MS.EXISTENC, 0) as EXISTEC,
                        S.NOMSUC as SUCURSAL_NOMBRE
                 FROM MATERIAL M
                 LEFT JOIN MATERIALSUC MS ON M.MATID = MS.MATID

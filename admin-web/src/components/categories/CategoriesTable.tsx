@@ -17,12 +17,10 @@ export function CategoriesTable() {
   const { data: categories, isLoading, refetch } = useQuery({
     queryKey: ['admin-categories', searchTerm, statusFilter],
     queryFn: async (): Promise<AdminCategory[]> => {
-      console.log('🔍 Obteniendo categorías del sistema administrativo...')
       
       try {
         const response = await AdminCategoriesService.getCategories()
         
-        console.log('✅ Respuesta de categorías admin:', response)
         
         // Manejar diferentes formatos de respuesta
         let categoriesList = []
@@ -58,11 +56,9 @@ export function CategoriesTable() {
             return a.name.localeCompare(b.name)
           })
 
-          console.log(`✅ ${filtered.length} categorías obtenidas del admin`)
           return filtered
         }
         
-        console.log('❌ No se pudieron obtener las categorías del admin')
         return []
       } catch (error) {
         console.error('❌ Error al obtener categorías del admin:', error)

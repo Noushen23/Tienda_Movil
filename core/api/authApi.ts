@@ -12,6 +12,8 @@ export interface RegisterRequest {
   password: string;
   telefono?: string;
   direccion?: string;
+  tipo_identificacion?: 'CC' | 'NIT' | 'CE' | 'TR';
+  numero_identificacion?: string;
 }
 
 export interface ChangePasswordRequest {
@@ -25,6 +27,8 @@ export interface User {
   nombreCompleto: string;
   telefono?: string;
   direccion?: string;
+  tipoIdentificacion?: 'CC' | 'NIT' | 'CE' | 'TR';
+  numeroIdentificacion?: string;
   rol: 'cliente' | 'admin' | 'vendedor';
   emailVerificado: boolean;
   fechaCreacion: string;

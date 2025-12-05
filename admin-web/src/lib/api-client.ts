@@ -29,11 +29,14 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (process.env.NODE_ENV === 'development') {
+      const errorData = error.response?.data || {};
       console.error('API Error:', {
         message: error.message,
         status: error.response?.status,
         url: error.config?.url,
         method: error.config?.method,
+        data: errorData,
+        responseData: error.response?.data,
       })
     }
 

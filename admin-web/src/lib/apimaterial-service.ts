@@ -50,6 +50,7 @@ export interface MaterialTNS {
   PRECIO1?: number
   PRECIO2?: number
   PRECIO3?: number
+  EXISTEC?: number
 }
 
 export interface MaterialesResponse {
@@ -79,8 +80,6 @@ export const ApimaterialService = {
   // Obtener todos los materiales
   getMateriales: async (filters?: MaterialFilters): Promise<MaterialesResponse> => {
     try {
-      console.log('🔍 ApimaterialService: Obteniendo materiales...')
-      console.log('📋 Filtros:', filters)
       
       const response = await apimaterialApi.get('/api/materiales', {
         params: {
@@ -92,7 +91,6 @@ export const ApimaterialService = {
         }
       })
       
-      console.log('✅ ApimaterialService: Respuesta recibida:', response.data)
       return response.data
     } catch (error) {
       console.error('❌ ApimaterialService: Error obteniendo materiales:', error)
@@ -103,13 +101,11 @@ export const ApimaterialService = {
   // Obtener material por ID
   getMaterialById: async (id: number, conPrecios: boolean = true): Promise<MaterialesResponse> => {
     try {
-      console.log(`🔍 ApimaterialService: Obteniendo material ID ${id}...`)
       
       const response = await apimaterialApi.get(`/api/materiales/${id}`, {
         params: { conPrecios }
       })
       
-      console.log('✅ ApimaterialService: Material obtenido:', response.data)
       return response.data
     } catch (error) {
       console.error('❌ ApimaterialService: Error obteniendo material:', error)
@@ -120,13 +116,11 @@ export const ApimaterialService = {
   // Obtener material por código
   getMaterialByCodigo: async (codigo: string, conPrecios: boolean = true): Promise<MaterialesResponse> => {
     try {
-      console.log(`🔍 ApimaterialService: Obteniendo material código ${codigo}...`)
       
       const response = await apimaterialApi.get(`/api/materiales/codigo/${codigo}`, {
         params: { conPrecios }
       })
       
-      console.log('✅ ApimaterialService: Material obtenido:', response.data)
       return response.data
     } catch (error) {
       console.error('❌ ApimaterialService: Error obteniendo material:', error)
@@ -137,10 +131,8 @@ export const ApimaterialService = {
   // Verificar conexión con Apimaterial
   checkConnection: async (): Promise<boolean> => {
     try {
-      console.log('🔍 ApimaterialService: Verificando conexión...')
       
       const response = await apimaterialApi.get('/health')
-      console.log('✅ ApimaterialService: Conexión exitosa:', response.data)
       
       return response.data.success === true
     } catch (error) {
@@ -152,10 +144,8 @@ export const ApimaterialService = {
   // Obtener información del sistema
   getSystemInfo: async () => {
     try {
-      console.log('🔍 ApimaterialService: Obteniendo información del sistema...')
       
       const response = await apimaterialApi.get('/')
-      console.log('✅ ApimaterialService: Info del sistema:', response.data)
       
       return response.data
     } catch (error) {

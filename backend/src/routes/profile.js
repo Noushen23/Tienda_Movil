@@ -59,6 +59,14 @@ const validateUserInfo = [
     .optional()
     .isLength({ max: 500 })
     .withMessage('La dirección no puede exceder 500 caracteres'),
+  body('tipoIdentificacion')
+    .optional()
+    .isIn(['CC', 'NIT', 'CE', 'TR'])
+    .withMessage('Tipo de identificación inválido'),
+  body('numeroIdentificacion')
+    .optional()
+    .isLength({ min: 5, max: 20 })
+    .withMessage('El número de identificación debe tener entre 5 y 20 caracteres'),
   handleValidationErrors
 ];
 
@@ -129,6 +137,38 @@ const validateUserId = [
   handleValidationErrors
 ];
 
+const validateChangePassword = [
+  body('currentPassword')
+  .notEmpty()
+  .withMessage('Contraseña actual requerida'),
+  body('newPassword')
+  .isLength({ min: 6 })
+  .withMessage('Nueva contraseña debe tener al menos 6 caracteres')
+  .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+  .withMessage('Nueva contraseña debe contener al menos una mayúscula, una minúscula y un número'),
+  handleValidationErrors
+];
+
+const validateRequestChangeEmail = [
+  body('newEmail')
+    .notEmpty()
+    .withMessage('El nuevo email es requerido')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('El formato del email no es válido'),
+  handleValidationErrors
+];
+
+const validateVerifyChangeEmail = [
+  body('code')
+    .notEmpty()
+    .withMessage('Código de verificación requerido')
+    .isLength({ min: 6, max: 6 })
+    .withMessage('El código debe tener 6 dígitos')
+    .matches(/^\d{6}$/)
+    .withMessage('El código debe contener solo números'),
+  handleValidationErrors
+];
 // Validaciones para favoritos
 const validateAddFavorite = [
   body('producto_id')
@@ -195,6 +235,15 @@ router.delete('/push-token', ProfileController.removePushToken);
 
 // Eliminar perfil
 router.delete('/', ProfileController.deleteProfile);
+
+// Cambiar contraseña
+router.put('/password', validateChangePassword, ProfileController.changePassword);
+
+// Solicitar cambio de email (enviar código de verificación)
+router.post('/email/request-change', validateRequestChangeEmail, ProfileController.requestChangeEmail);
+
+// Verificar código y cambiar email
+router.post('/email/verify-change', validateVerifyChangeEmail, ProfileController.verifyChangeEmail);
 
 // Obtener perfil público de otro usuario
 router.get('/public/:userId', validateUserId, ProfileController.getPublicProfile);

@@ -12,6 +12,7 @@ import ThemedTextInput from '@/presentation/theme/components/ThemedTextInput';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { LocationSelector } from './LocationSelector';
 import { AddressData } from '../hooks/useLocation';
+import { normalizeCityForStorage, normalizeDepartmentForStorage, normalizeAddressForStorage } from '@/presentation/utils/normalization';
 
 interface GPSAddressFormProps {
   onAddressChange: (addressData: Partial<AddressData>) => void;
@@ -46,7 +47,32 @@ export const GPSAddressForm: React.FC<GPSAddressFormProps> = ({
   };
 
   const handleFieldChange = (field: keyof AddressData, value: string) => {
-    const newData = { ...addressData, [field]: value };
+    let normalizedValue = value;
+    
+    // Normalizar campos específicos
+    switch (field) {
+      case 'address':
+        normalizedValue = normalizeAddressForStorage(value);
+        break;
+      case 'city':
+        normalizedValue = normalizeCityForStorage(value);
+        break;
+      case 'department':
+        normalizedValue = normalizeDepartmentForStorage(value);
+        break;
+      case 'country':
+        normalizedValue = normalizeCityForStorage(value);
+        break;
+      default:
+        normalizedValue = value.trim();
+    }
+    
+    console.log(`🔤 Campo ${field} normalizado:`, {
+      original: value,
+      normalized: normalizedValue
+    });
+    
+    const newData = { ...addressData, [field]: normalizedValue };
     setAddressData(newData);
     onAddressChange(newData);
   };
@@ -263,6 +289,27 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

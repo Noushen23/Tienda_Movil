@@ -16,13 +16,17 @@ import { ReviewSimple } from '@/core/api/reviewsApi';
 interface ReviewsListProps {
   productId: string;
   onWriteReview?: () => void;
+  onEditReview?: () => void;
   canWriteReview?: boolean;
+  hasExistingReview?: boolean;
 }
 
 export const ReviewsList: React.FC<ReviewsListProps> = ({ 
   productId, 
   onWriteReview, 
-  canWriteReview = false 
+  onEditReview,
+  canWriteReview = false,
+  hasExistingReview = false
 }) => {
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
@@ -97,7 +101,18 @@ export const ReviewsList: React.FC<ReviewsListProps> = ({
       <ThemedText style={styles.emptySubtitle}>
         Sé el primero en calificar este producto
       </ThemedText>
-      {canWriteReview && onWriteReview && (
+      {hasExistingReview ? (
+        onEditReview && (
+          <TouchableOpacity
+            style={[styles.writeFirstReviewButton, { backgroundColor: tintColor }]}
+            onPress={onEditReview}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="create-outline" size={16} color="white" />
+            <ThemedText style={styles.writeFirstReviewText}>Editar mi reseña</ThemedText>
+          </TouchableOpacity>
+        )
+      ) : canWriteReview && onWriteReview && (
         <TouchableOpacity
           style={[styles.writeFirstReviewButton, { backgroundColor: tintColor }]}
           onPress={onWriteReview}
@@ -108,7 +123,7 @@ export const ReviewsList: React.FC<ReviewsListProps> = ({
         </TouchableOpacity>
       )}
     </View>
-  ), [canWriteReview, onWriteReview, tintColor]);
+  ), [canWriteReview, hasExistingReview, onWriteReview, onEditReview, tintColor]);
 
   // Mostrar error
   if (isError) {

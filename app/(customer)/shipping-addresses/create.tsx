@@ -38,10 +38,15 @@ export default function CreateShippingAddressScreen() {
   const handleAddressData = (data: Partial<AddressData>) => {
     if (data.address && data.city && data.department && data.coordinates) {
       setAddressData({
-        latitude: data.coordinates.latitude,
-        longitude: data.coordinates.longitude,
         address: data.address,
         city: data.city,
+        department: data.department,
+        country: data.country || 'Colombia',
+        postalCode: data.postalCode,
+        coordinates: data.coordinates,
+        // Propiedades adicionales para compatibilidad
+        latitude: data.coordinates.latitude,
+        longitude: data.coordinates.longitude,
         state: data.department,
       });
     }
@@ -80,10 +85,11 @@ export default function CreateShippingAddressScreen() {
         telefono: telefono.trim(),
         direccion: addressData.address,
         ciudad: addressData.city,
-        departamento: addressData.state,
+        departamento: addressData.department,
+        codigoPostal: addressData.postalCode || undefined, // ← AGREGADO: Incluir código postal
         coordenadas: {
-          latitud: addressData.latitude,
-          longitud: addressData.longitude,
+          latitud: addressData.coordinates.latitude,
+          longitud: addressData.coordinates.longitude,
         },
         instrucciones: instrucciones.trim() || undefined,
         esPrincipal,
@@ -188,8 +194,13 @@ export default function CreateShippingAddressScreen() {
                   {addressData.address}
                 </ThemedText>
                 <ThemedText style={styles.locationCity}>
-                  {addressData.city}, {addressData.state}
+                  {addressData.city}, {addressData.department}
                 </ThemedText>
+                {addressData.postalCode && (
+                  <ThemedText style={styles.locationPostalCode}>
+                    📮 Código Postal: {addressData.postalCode}
+                  </ThemedText>
+                )}
               </View>
             )}
           </View>
@@ -404,6 +415,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  locationPostalCode: {
+    fontSize: 14,
+    color: '#2196F3',
+    marginTop: 4,
+    fontWeight: '500',
   },
   optionContainer: {
     flexDirection: 'row',

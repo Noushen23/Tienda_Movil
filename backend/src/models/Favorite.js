@@ -81,6 +81,7 @@ class Favorite {
             p.stock as producto_stock,
             p.activo as producto_activo,
             p.destacado as producto_destacado,
+            p.es_servicio as producto_es_servicio,
             c.nombre as categoria_nombre
           FROM favoritos_usuario f
           INNER JOIN productos p ON f.producto_id = p.id
@@ -147,6 +148,8 @@ class Favorite {
                 stock: fav.producto_stock,
                 activo: fav.producto_activo,
                 destacado: fav.producto_destacado,
+                es_servicio: fav.producto_es_servicio || false,
+                esServicio: fav.producto_es_servicio || false,
                 categoria_nombre: fav.categoria_nombre,
                 imagenes: imagenesConUrls,
                 etiquetas: Array.isArray(etiquetas) ? etiquetas : []

@@ -19,9 +19,11 @@ export interface ProfileStats {
 }
 
 export interface UpdateUserInfoData {
-  firstName: string;
-  lastName: string;
-  phone?: string;
+  nombreCompleto?: string;
+  telefono?: string;
+  direccion?: string;
+  tipoIdentificacion?: 'CC' | 'NIT' | 'CE' | 'TR';
+  numeroIdentificacion?: string;
 }
 
 export interface NotificationPreferences {
@@ -62,6 +64,12 @@ export const profileApi = {
     return response.data;
   },
 
+  // Actualizar información básica del usuario
+  updateUserInfo: async (data: UpdateUserInfoData): Promise<ApiResponse<any>> => {
+    const response = await apiClient.put('/profile/user-info', data);
+    return response.data;
+  },
+
   // Actualizar avatar
   updateAvatar: async (avatar: string): Promise<ApiResponse<Profile>> => {
     const response = await apiClient.put('/profile/avatar', { avatar });
@@ -98,7 +106,23 @@ export const profileApi = {
       currentPassword,
       newPassword
     });
-    return response.data;
+    return response; // apiClient.put ya retorna response.data, no necesitamos .data nuevamente
+  },
+
+  // Solicitar cambio de email (enviar código de verificación)
+  requestChangeEmail: async (newEmail: string): Promise<ApiResponse<{ email: string }>> => {
+    const response = await apiClient.post('/profile/email/request-change', {
+      newEmail
+    });
+    return response;
+  },
+
+  // Verificar código y cambiar email
+  verifyChangeEmail: async (code: string): Promise<ApiResponse<{ oldEmail: string; newEmail: string }>> => {
+    const response = await apiClient.post('/profile/email/verify-change', {
+      code
+    });
+    return response;
   },
 
   // Eliminar cuenta

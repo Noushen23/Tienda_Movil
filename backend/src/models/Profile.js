@@ -212,9 +212,9 @@ class Profile {
   async getStats() {
     const sql = `
       SELECT 
-        (SELECT COUNT(*) FROM pedidos WHERE user_id = ?) as total_orders,
+        (SELECT COUNT(*) FROM ordenes WHERE usuario_id = ?) as total_orders,
         (SELECT COUNT(*) FROM carritos WHERE usuario_id = ? AND activo = true) as active_carts,
-        (SELECT COALESCE(SUM(total), 0) FROM pedidos WHERE user_id = ? AND status = 'COMPLETED') as total_spent
+        (SELECT COALESCE(SUM(total), 0) FROM ordenes WHERE usuario_id = ? AND estado = 'entregada') as total_spent
     `;
     
     const stats = await query(sql, [this.usuarioId, this.usuarioId, this.usuarioId]);
@@ -296,6 +296,21 @@ class Profile {
 }
 
 module.exports = Profile;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -21,6 +21,20 @@ const ProductImages = ({ images, style }: Props) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Helper para validar URLs de imágenes
+  const isValidImageUrl = (url: string): boolean => {
+    if (!url || typeof url !== 'string') return false;
+    
+    const trimmedUrl = url.trim();
+    if (trimmedUrl === '') return false;
+    
+    try {
+      new URL(trimmedUrl);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   if (!images || images.length === 0) {
     return (
@@ -37,10 +51,12 @@ const ProductImages = ({ images, style }: Props) => {
   const validImages = images
     .map((img) => {
       if (typeof img === 'string') {
-        return img.trim() !== '' ? img : null;
+        const trimmedUrl = img.trim();
+        return isValidImageUrl(trimmedUrl) ? trimmedUrl : null;
       } else if (img && typeof img === 'object') {
-        const url = img.url || img.urlImagen || img.url_imagen;
-        return url && url.trim() !== '' ? url : null;
+        const url = img.url || img.urlImagen; // TODO: Agregar url_imagen
+        const trimmedUrl = url ? url.trim() : '';
+        return isValidImageUrl(trimmedUrl) ? trimmedUrl : null;
       }
       return null;
     })
@@ -76,10 +92,10 @@ const ProductImages = ({ images, style }: Props) => {
         style={styles.image}
         resizeMode="cover"
         onError={(error) => {
-          console.log('❌ Error loading image:', item, error);
+          console.warn('⚠️ Error cargando imagen:', item, error.nativeEvent.error);
         }}
         onLoad={() => {
-          console.log('✅ Image loaded successfully:', item);
+          console.log('✅ Imagen cargada exitosamente:', item);
         }}
       />
     </TouchableOpacity>
@@ -142,7 +158,7 @@ const ProductImages = ({ images, style }: Props) => {
                   style={styles.modalImage}
                   resizeMode="contain"
                   onError={(error) => {
-                    console.log('❌ Error loading modal image:', item, error);
+                    console.warn('⚠️ Error cargando imagen modal:', item, error.nativeEvent.error);
                   }}
                 />
               </View>

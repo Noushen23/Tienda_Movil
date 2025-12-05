@@ -38,7 +38,6 @@ export const CONFIG = {
   CACHE_KEYS: {
     PRODUCTS: 'admin-products',
     CATEGORIES: 'admin-categories',
-    KARDEX: 'admin-kardex',
     DASHBOARD_STATS: 'dashboard-stats',
     TOP_PRODUCTS: 'top-products',
     RECENT_ORDERS: 'recent-orders',
@@ -50,7 +49,6 @@ export const CONFIG = {
     DASHBOARD: '/dashboard',
     PRODUCTS: '/dashboard/products',
     CATEGORIES: '/dashboard/categories',
-    KARDEX: '/dashboard/kardex',
   },
   
   // Storage Keys

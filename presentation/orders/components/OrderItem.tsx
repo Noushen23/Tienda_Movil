@@ -4,6 +4,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/presentation/theme/components/ThemedText';
@@ -16,9 +18,14 @@ import { getOrderStatusColor, getOrderStatusText, getOrderStatusIcon } from '@/p
 interface OrderItemProps {
   order: OrderSimple;
   onPress: (orderId: string) => void;
+  showActions?: boolean;
 }
 
-export const OrderItem: React.FC<OrderItemProps> = ({ order, onPress }) => {
+export const OrderItem: React.FC<OrderItemProps> = ({ 
+  order, 
+  onPress,
+  showActions = true,
+}) => {
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackground = useThemeColor({}, 'cardBackground');
@@ -37,14 +44,23 @@ export const OrderItem: React.FC<OrderItemProps> = ({ order, onPress }) => {
       <View style={styles.header}>
         <View style={styles.orderInfo}>
           <ThemedText style={styles.orderNumber}>{order.numeroOrden}</ThemedText>
-          <ThemedText style={styles.orderDate}>{formatDate(order.fechaCreacion, { format: 'medium' })}</ThemedText>
+          <ThemedText style={styles.orderDate}>{formatDate(order.fechaCreacion, { format: 'long' })}</ThemedText>
         </View>
         
-        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-          <Ionicons name={statusIcon as any} size={16} color={statusColor} />
-          <ThemedText style={[styles.statusText, { color: statusColor }]}>
-            {statusText}
-          </ThemedText>
+        <View style={styles.statusSection}>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+            <Ionicons name={statusIcon as any} size={16} color={statusColor} />
+            <ThemedText style={[styles.statusText, { color: statusColor }]}>
+              {statusText}
+            </ThemedText>
+          </View>
+          
+          {/* Indicador de urgencia */}
+          {order.estado === 'pendiente' && (
+            <View style={styles.urgencyIndicator}>
+              <Ionicons name="time-outline" size={12} color="#F59E0B" />
+            </View>
+          )}
         </View>
       </View>
 
@@ -98,19 +114,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
+    marginHorizontal: 16,
+    marginTop: 2,
+    borderRadius: 16,
   },
   orderInfo: {
     flex: 1,
   },
   orderNumber: {
+    textAlign: 'left',
+    letterSpacing: 0.5,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+    marginBottom: 0.5,
   },
   orderDate: {
     fontSize: 12,
     color: '#666',
+  },
+  statusSection: {
+    alignItems: 'flex-end',
   },
   statusBadge: {
     flexDirection: 'row',
@@ -123,6 +147,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 4,
+  },
+  urgencyIndicator: {
+    marginTop: 4,
+    padding: 2,
+    borderRadius: 8,
+    backgroundColor: '#F59E0B20',
   },
   content: {
     flexDirection: 'row',

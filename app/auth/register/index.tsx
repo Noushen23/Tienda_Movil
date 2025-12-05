@@ -14,6 +14,7 @@ import ThemedButton from '@/presentation/theme/components/ThemedButton';
 import ThemedLink from '@/presentation/theme/components/ThemedLink';
 import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import ThemedControlledInput from '@/presentation/theme/components/ThemedControlledInput';
+import ThemedPicker from '@/presentation/theme/components/ThemedPicker';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { useAuthStore } from '@/presentation/auth/store/useAuthStore';
 import { registerSchema, RegisterFormData } from '@/core/auth/schemas/authSchemas';
@@ -30,6 +31,8 @@ const RegisterScreen = () => {
       email: '',
       password: '',
       telefono: '',
+      tipoIdentificacion: undefined,
+      numeroIdentificacion: '',
     },
   });
 
@@ -40,10 +43,14 @@ const RegisterScreen = () => {
       data.nombreCompleto, 
       data.email, 
       data.password, 
-      data.telefono || ''
+      data.telefono || '',
+      data.tipoIdentificacion,
+      data.numeroIdentificacion || ''
     );
 
     if (wasSuccessful) {
+      // Detectar si hubo advertencia de duplicado desde la respuesta del API
+      // Nota: La advertencia se logueó en el store, aquí mostramos el mensaje estándar
       Alert.alert(
         '✅ Cuenta Creada',
         'Tu cuenta ha sido creada exitosamente. Te hemos enviado un código de verificación a tu email.',
@@ -111,6 +118,28 @@ const RegisterScreen = () => {
             placeholder="Teléfono (opcional)"
             keyboardType="phone-pad"
             icon="call-outline"
+          />
+
+          {/* Campos de identificación */}
+          <ThemedPicker
+            control={control}
+            name="tipoIdentificacion"
+            icon="card-outline"
+            items={[
+              { label: 'Cédula de Ciudadanía', value: 'CC' },
+              { label: 'NIT', value: 'NIT' },
+              { label: 'Cédula de Extranjería', value: 'CE' },
+              { label: 'Tarjeta de Identidad', value: 'TR' },
+            ]}
+          />
+
+          <ThemedControlledInput
+            control={control}
+            name="numeroIdentificacion"
+            placeholder="Número de identificación"
+            keyboardType="default"
+            autoCapitalize="none"
+            icon="document-text-outline"
           />
 
           <ThemedControlledInput
