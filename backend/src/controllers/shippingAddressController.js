@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Normalizar ciudad para búsqueda (remover acentos)
@@ -210,14 +211,18 @@ class ShippingAddressController {
         await query(updatePrimarySql, [userId]);
       }
 
+      // Generar UUID para la dirección (similar a productos y usuarios)
+      const addressId = uuidv4();
+
       const sql = `
         INSERT INTO direcciones_envio (
-          usuario_id, nombre_destinatario, telefono, direccion, 
+          id, usuario_id, nombre_destinatario, telefono, direccion, 
           ciudad, departamento, codigo_postal, pais, es_principal, activa
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)
       `;
 
-      const result = await query(sql, [
+      await query(sql, [
+        addressId,
         userId,
         nombreDestinatario,
         telefono || null,
@@ -229,10 +234,16 @@ class ShippingAddressController {
         esPrincipal
       ]);
 
-      // Obtener la dirección creada
+      // Obtener la dirección creada usando el UUID generado
       const getAddressSql = 'SELECT * FROM direcciones_envio WHERE id = ?';
-      const addresses = await query(getAddressSql, [result.insertId]);
+      const addresses = await query(getAddressSql, [addressId]);
       const address = addresses[0];
+      
+      // Validar que la dirección se encontró
+      if (!address) {
+        console.error('❌ No se encontró dirección con id:', addressId);
+        throw new Error('No se pudo recuperar la dirección creada');
+      }
 
       res.status(201).json({
         success: true,

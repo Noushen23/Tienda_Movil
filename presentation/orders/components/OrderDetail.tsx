@@ -9,6 +9,7 @@ import {
   Linking,
   Dimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import { ThemedView } from '@/presentation/theme/components/ThemedView';
@@ -30,6 +31,7 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
   onCancelOrder,
   showCancelButton = true 
 }) => {
+  const router = useRouter();
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackground = useThemeColor({}, 'cardBackground');
@@ -252,7 +254,16 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
           </View>
         </View>
         {order.items.map((item, index) => (
-          <View key={item.id} style={[styles.productItem, index === order.items.length - 1 && styles.lastProductItem]}>
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.productItem, index === order.items.length - 1 && styles.lastProductItem]}
+            onPress={() => {
+              if (item.productId) {
+                router.push(`/(customer)/product/${item.productId}` as any);
+              }
+            }}
+            activeOpacity={0.7}
+          >
             <View style={styles.productImageContainer}>
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
@@ -277,10 +288,13 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
                   </ThemedText>
                   {item.productDescription.length > 80 && (
                     <TouchableOpacity 
-                      onPress={() => setShowFullDescription(prev => ({
-                        ...prev, 
-                        [item.id]: !prev[item.id]
-                      }))}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setShowFullDescription(prev => ({
+                          ...prev, 
+                          [item.id]: !prev[item.id]
+                        }));
+                      }}
                     >
                       <ThemedText style={[styles.readMoreText, { color: tintColor }]}>
                         {showFullDescription[item.id] ? '▲ Ver menos' : '▼ Ver más'}
@@ -308,7 +322,7 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
                 {formatCurrency(item.subtotal)}
               </ThemedText>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </ThemedView>
 

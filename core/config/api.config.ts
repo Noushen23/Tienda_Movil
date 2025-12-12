@@ -6,27 +6,24 @@ export const API_CONFIG = {
   // Stage actual (dev, prod, etc)
   STAGE: Constants.expoConfig?.extra?.EXPO_PUBLIC_STAGE || 'dev',
 
-  // URL base de la API según plataforma
+  // URL base de la API - lee desde variables de entorno
   get API_URL(): string {
-    // Emulador Android usa 10.0.2.2, dispositivos físicos deben usar la IP local de la PC
-    if (Platform.OS === 'android') {
-      return 'http://192.168.3.104:3001/api/v1';
-    }
-    // Cambia la IP por la de tu red local si usas dispositivo físico o simulador iOS
-    return 'http://192.168.3.104:3001/api/v1';
+    return Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || 'http://181.49.225.61:3001/api/v1';
   },
 
-  // URL sugerida para dispositivos físicos Android (modifica según tu red)
+  // URL base sin /api/v1
+  get API_BASE_URL(): string {
+    return Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL || 'http://181.49.225.61:3001';
+  },
+
+  // URL sugerida para dispositivos físicos Android
   get ANDROID_DEVICE_URL(): string {
-    return 'http://192.168.3.104:3001/api/v1';
+    return this.API_URL;
   },
 
-  // Función para obtener la URL local de la API (puede usarse para lógica avanzada)
+  // Función para obtener la URL de la API
   async getLocalApiUrl(): Promise<string> {
-    if (Platform.OS === 'android') {
-      return 'http://192.168.3.104:3001/api/v1';
-    }
-    return 'http://192.168.3.104:3001/api/v1';
+    return this.API_URL;
   },
 
   // Timeout de requests (ms)

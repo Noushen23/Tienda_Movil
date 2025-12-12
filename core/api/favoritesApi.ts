@@ -1,4 +1,5 @@
 import { apiClient, ApiResponse } from './apiClient';
+import { API_CONFIG } from '../config/api.config';
 
 // Interfaces para favoritos
 export interface Favorite {
@@ -97,7 +98,7 @@ export const favoritesApi = {
             
             // Si la URL es relativa, construir URL completa
             if (url && !url.startsWith('http')) {
-              const baseUrl = 'http://192.168.3.104:3001';
+              const baseUrl = API_CONFIG.API_BASE_URL;
               url = url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
             }
             

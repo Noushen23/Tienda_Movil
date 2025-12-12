@@ -21,6 +21,7 @@ class ProductController {
         stockFilter,
         esServicio, // Nuevo filtro para servicios
         es_servicio, // Alias alternativo
+        activo, // Filtro para productos activos/inactivos
         sortBy = 'recientes', // recientes, precio_asc, precio_desc, ventas, calificacion
         page = 1, 
         limit = 20 
@@ -29,6 +30,16 @@ class ProductController {
       // Construir query con filtros dinámicos
       let whereConditions = [];
       let queryParams = [];
+      
+      // Filtro por productos activos (por defecto solo activos para clientes)
+      if (activo !== undefined) {
+        const activoValue = activo === 'true' || activo === '1' || activo === 1 || activo === true;
+        whereConditions.push('p.activo = ?');
+        queryParams.push(activoValue ? 1 : 0);
+      } else {
+        // Por defecto, solo mostrar productos activos si no se especifica
+        whereConditions.push('p.activo = 1');
+      }
       
       // Filtro por categoría
       if (categoriaId) {
@@ -185,7 +196,7 @@ class ProductController {
         throw new Error(`products no es un array: ${typeof products}`);
       }
 
-      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
       
       const formattedProducts = products.map(product => {
         // Parsear imágenes desde GROUP_CONCAT con validación
@@ -580,7 +591,7 @@ class ProductController {
 
       const products = await query(productQuery, [productId]);
       const product = products[0];
-      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
 
       // Parsear imágenes y etiquetas desde GROUP_CONCAT
       let imagenesFormateadas = [];
@@ -907,7 +918,7 @@ class ProductController {
 
       const products = await query(productQuery, [id]);
       const product = products[0];
-      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
 
       // Parsear imágenes y etiquetas desde GROUP_CONCAT
       let imagenesUpdate = [];
@@ -1186,6 +1197,7 @@ class ProductController {
         calificacionMin,
         esServicio,
         es_servicio,
+        activo,
         orderBy = 'fecha_creacion',
         orderDir = 'DESC'
       } = req.query;
@@ -1198,6 +1210,13 @@ class ProductController {
       }
 
       const offset = (page - 1) * limit;
+      
+      // Determinar el valor de activo (por defecto true si no se especifica)
+      let activoValue = true;
+      if (activo !== undefined) {
+        activoValue = activo === 'true' || activo === '1' || activo === 1 || activo === true;
+      }
+      
       const filters = {
         busqueda,
         categoriaId,
@@ -1207,7 +1226,7 @@ class ProductController {
         calificacionMin: calificacionMin ? parseFloat(calificacionMin) : undefined,
         esServicio: esServicio !== undefined ? (esServicio === 'true' || esServicio === '1') : undefined,
         es_servicio: es_servicio !== undefined ? (es_servicio === 'true' || es_servicio === '1') : undefined,
-        activo: true,
+        activo: activoValue,
         orderBy,
         orderDir,
         limit: parseInt(limit),

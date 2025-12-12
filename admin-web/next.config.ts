@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'http',
+        hostname: '181.49.225.61',
+        port: '3001',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'http',
         hostname: '192.168.3.104',
         port: '3001',
         pathname: '/uploads/**',

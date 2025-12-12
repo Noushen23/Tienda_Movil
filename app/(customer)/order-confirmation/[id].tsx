@@ -201,7 +201,16 @@ export default function OrderConfirmationScreen() {
           
           <View style={styles.productsContainer}>
             {order.items.map((item, index) => (
-              <View key={item.id || index} style={styles.productItem}>
+              <TouchableOpacity
+                key={item.id || index}
+                style={styles.productItem}
+                onPress={() => {
+                  if (item.productId) {
+                    router.push(`/(customer)/product/${item.productId}` as any);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 <View style={styles.productInfo}>
                   <ThemedText style={styles.productName}>
                     {item.nombreProducto}
@@ -224,7 +233,7 @@ export default function OrderConfirmationScreen() {
                     {formatCurrency(item.subtotal || 0)}
                   </ThemedText>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>

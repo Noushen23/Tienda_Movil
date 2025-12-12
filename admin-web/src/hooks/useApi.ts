@@ -1,9 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CONFIG } from '@/lib/config'
+import { useQuery, useMutation, useQueryClient, QueryKey } from "@tanstack/react-query"
+import { CONFIG } from "@/lib/config"
 
-// Hook para queries optimizadas
 export function useOptimizedQuery<T>(
-  key: string[],
+  key: QueryKey,
   queryFn: () => Promise<T>,
   options?: {
     enabled?: boolean
@@ -21,13 +20,12 @@ export function useOptimizedQuery<T>(
   })
 }
 
-// Hook para mutaciones optimizadas
 export function useOptimizedMutation<TData, TVariables>(
   mutationFn: (variables: TVariables) => Promise<TData>,
   options?: {
     onSuccess?: (data: TData, variables: TVariables) => void
-    onError?: (error: Error, variables: TVariables) => void
-    invalidateQueries?: string[][]
+    onError?: (error: unknown, variables: TVariables) => void
+    invalidateQueries?: QueryKey[]
   }
 ) {
   const queryClient = useQueryClient()
@@ -35,36 +33,27 @@ export function useOptimizedMutation<TData, TVariables>(
   return useMutation({
     mutationFn,
     onSuccess: (data, variables) => {
-      // Invalidar queries relacionadas
       if (options?.invalidateQueries) {
         options.invalidateQueries.forEach(queryKey => {
           queryClient.invalidateQueries({ queryKey })
         })
       }
-      
-      // Callback personalizado
+
       options?.onSuccess?.(data, variables)
     },
-    onError: options?.onError,
-    retry: false, // No reintentar mutaciones por defecto
+    onError: (error, variables) => {
+      options?.onError?.(error, variables)
+    },
+    retry: false,
   })
 }
 
-// Hook para invalidar múltiples queries
 export function useInvalidateQueries() {
   const queryClient = useQueryClient()
 
-  return (queryKeys: string[][]) => {
+  return (queryKeys: QueryKey[]) => {
     queryKeys.forEach(queryKey => {
       queryClient.invalidateQueries({ queryKey })
     })
   }
 }
-
-
-
-
-
-
-
-

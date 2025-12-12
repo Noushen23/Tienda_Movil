@@ -33,12 +33,15 @@ const config = {
         'http://localhost:19006', // Expo web
         'http://192.168.3.104:3000', // Admin web específico
         'http://192.168.3.104:3001', // Android emulator
+        'http://181.49.225.61:3000', // Admin web IP pública
+        'http://181.49.225.61:3001', // API IP pública
       ];
       
-      // Patrones para IPs locales
+      // Patrones para IPs locales y públicas
       const patterns = [
         /^http:\/\/192\.168\.\d+\.\d+:3000$/, // Admin Web en IPs locales
         /^http:\/\/192\.168\.\d+\.\d+:3001$/, // API en IPs locales
+        /^http:\/\/181\.49\.225\.61:\d+$/, // IP pública
         /^http:\/\/10\.0\.2\.\d+:3001$/, // Android emulator
         /^http:\/\/localhost:\d+$/, // Cualquier puerto localhost
         /^http:\/\/127\.0\.0\.1:\d+$/ // Cualquier puerto 127.0.0.1
@@ -75,7 +78,7 @@ const config = {
   app: {
     name: process.env.APP_NAME || 'Tienda Móvil',
     version: process.env.APP_VERSION || '1.0.0',
-    url: process.env.APP_URL || 'http://localhost:3001'
+    url: process.env.APP_URL || process.env.API_BASE_URL || 'http://181.49.225.61:3001'
   },
   
   // Configuración de email (opcional)
@@ -96,7 +99,7 @@ const config = {
   },
 
   // URL base para construir URLs de imágenes
-  apiBaseUrl: process.env.API_BASE_URL || 'http://192.168.3.104:3001',
+  apiBaseUrl: process.env.API_BASE_URL || process.env.APP_URL || 'http://181.49.225.61:3001',
   
   // Configuración de rate limiting
   rateLimit: {

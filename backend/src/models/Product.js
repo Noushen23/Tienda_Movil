@@ -358,7 +358,7 @@ class Product {
     if (includeImages) {
       const rawImages = await this.getImages();
       // Generar URLs completas para las imágenes con validación
-      const baseUrl = process.env.APP_URL || 'http://192.168.3.104:3001';
+      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
       images = rawImages.map(img => {
         // Validar y limpiar URL de imagen
         let imageUrl = img.url_imagen;

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SincronizacionService, PedidoPendiente, PedidoError, UltimaSincronizacion, EstadoAPI } from '@/lib/sincronizacion-service';
+import { SincronizacionService } from '@/lib/sincronizacion-service';
 import toast from 'react-hot-toast';
 
 /**
@@ -58,7 +58,7 @@ export function useReintentarSincronizacion() {
 
   return useMutation({
     mutationFn: (pedidoId: string) => SincronizacionService.reintentarSincronizacion(pedidoId),
-    onSuccess: (success, pedidoId) => {
+    onSuccess: (success) => {
       if (success) {
         toast.success('✅ Sincronización reintentada exitosamente', {
           duration: 3000,

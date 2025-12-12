@@ -21,6 +21,7 @@ import { ThemedText } from '@/presentation/theme/components/ThemedText';
 import { useThemeColor } from '@/presentation/theme/hooks/useThemeColor';
 import { Product } from '@/core/api/productsApi';
 import { CategorySelector } from '@/presentation/categories/components/CategorySelector';
+import { CategoryDropdown } from '@/presentation/categories/components/CategoryDropdown';
 import { useAddToCart } from '@/presentation/cart/hooks/useCart';
 import { CartIndicator } from '@/presentation/cart/components/CartIndicator';
 import { useToggleFavorite, useIsFavorite } from '@/presentation/favorites/hooks/useFavorites';
@@ -610,13 +611,21 @@ export default function CatalogScreen() {
         <SearchHistory onSelectSearch={handleSearchFromHistory} />
       )}
 
-      {/* Categorías */}
+      {/* Categorías - Usar dropdown si hay muchas categorías */}
       <View style={styles.categorySelectorContainer}>
-        <CategorySelector
-          selectedCategoryId={selectedCategoryId || undefined}
-          onCategorySelect={handleCategorySelect}
-          showAllOption={true}
-        />
+        {categoriesQuery.data?.categories && categoriesQuery.data.categories.length > 5 ? (
+          <CategoryDropdown
+            selectedCategoryId={selectedCategoryId || undefined}
+            onCategorySelect={handleCategorySelect}
+            showAllOption={true}
+          />
+        ) : (
+          <CategorySelector
+            selectedCategoryId={selectedCategoryId || undefined}
+            onCategorySelect={handleCategorySelect}
+            showAllOption={true}
+          />
+        )}
       </View>
 
       {/* Filtros activos */}

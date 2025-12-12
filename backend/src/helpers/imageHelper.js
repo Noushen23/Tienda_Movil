@@ -33,7 +33,7 @@ class ImageHelper {
     }
 
     // Construir URL completa
-    const baseUrl = config.apiBaseUrl || 'http://192.168.3.104:3001';
+    const baseUrl = config.apiBaseUrl || 'http://181.49.225.61:3001';
     const cleanPath = cleanedPath.startsWith('/') ? cleanedPath : `/${cleanedPath}`;
     const fullUrl = `${baseUrl}${cleanPath}`;
     
@@ -62,7 +62,7 @@ class ImageHelper {
     }
 
     // Construir URL completa usando la configuración
-    const baseUrl = config.apiBaseUrl || 'http://192.168.3.104:3001';
+    const baseUrl = config.apiBaseUrl || 'http://181.49.225.61:3001';
     
     // Asegurar que la ruta comience con /
     const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
@@ -163,7 +163,7 @@ class ImageHelper {
    * @returns {string} URL base
    */
   static getBaseUrl() {
-    return config.apiBaseUrl || config.app.url || 'http://192.168.3.104:3001';
+    return config.apiBaseUrl || config.app.url || 'http://181.49.225.61:3001';
   }
 
   /**
