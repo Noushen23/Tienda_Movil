@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const notificationService = require('../services/notificationService');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Controlador para gestionar notificaciones y suscripciones
@@ -67,7 +68,7 @@ class NotificationController {
       }
 
       // Crear nueva suscripción
-      const subscriptionId = require('crypto').randomUUID();
+      const subscriptionId = uuidv4();
       await query(
         `INSERT INTO notificaciones_stock (id, usuario_id, producto_id, activa, notificado)
          VALUES (?, ?, ?, TRUE, FALSE)`,
@@ -220,7 +221,7 @@ class NotificationController {
       }
 
       // Crear nueva suscripción
-      const subscriptionId = require('crypto').randomUUID();
+      const subscriptionId = uuidv4();
       await query(
         `INSERT INTO notificaciones_precio 
          (id, usuario_id, producto_id, precio_objetivo, precio_original, activa, notificado)

@@ -50,6 +50,15 @@ class ApiClient {
     // Interceptor de request para agregar token
     this.client.interceptors.request.use(
       async (config) => {
+
+	console.log('API Request:',{
+	method: config.method?.toUpperCase(),
+	url: config.url,
+	baseURL: config.baseURL,
+	fullURL: `${config.baseURL}${config.url}`,
+
+	});
+	
         // Si no hay token en memoria, intentar cargarlo desde SecureStore
         if (!this.token) {
           await this.loadToken();
@@ -62,6 +71,7 @@ class ApiClient {
         return config;
       },
       (error) => {
+	console.error('API Request Error:', error)
         return Promise.reject(error);
       }
     );
@@ -69,9 +79,30 @@ class ApiClient {
     // Interceptor de response para manejar errores
     this.client.interceptors.response.use(
       (response: AxiosResponse) => {
+
+	  console.log('✅ API Response:', {
+          status: response.status,
+          url: response.config.url,
+        });
+
+
         return response;
       },
       async (error) => {
+
+
+	  // Log detallado del error
+        console.error('❌ API Error:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL,
+          fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
+          data: error.response?.data,
+        });
+
         if (error.response?.status === 401) {
           // Token expirado o inválido - limpiar silenciosamente
           await this.clearToken();

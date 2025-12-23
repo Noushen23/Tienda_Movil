@@ -14,17 +14,17 @@ Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
 # ============================================
 
 # IP Pública del Servidor
-API_PUBLIC_IP=181.49.225.61
+API_PUBLIC_IP=192.168.1.106
 API_PORT=3001
 
 # URL Base de la API
-API_BASE_URL=http://181.49.225.61:3001
-API_URL=http://181.49.225.61:3001/api/v1
+API_BASE_URL=http://192.168.1.106:3001
+API_URL=http://192.168.1.106:3001/api/v1
 
 # Configuración del Backend
 NODE_ENV=development
 PORT=3001
-APP_URL=http://181.49.225.61:3001
+APP_URL=http://192.168.1.106:3001
 
 # Base de Datos MySQL
 DB_HOST=localhost
@@ -70,7 +70,7 @@ Crea un archivo `.env` en la carpeta `admin-web/` con el siguiente contenido:
 # ============================================
 
 # URL Base de la API (pública para Next.js)
-NEXT_PUBLIC_API_URL=http://181.49.225.61:3001/api/v1
+NEXT_PUBLIC_API_URL=http://192.168.1.106:3001/api/v1
 
 # API de Materiales
 NEXT_PUBLIC_APIMATERIAL_URL=http://localhost:51250
@@ -86,8 +86,8 @@ Las variables de entorno para la app móvil están configuradas en `app.json` en
 
 ```json
 "extra": {
-  "EXPO_PUBLIC_API_URL": "http://181.49.225.61:3001/api/v1",
-  "EXPO_PUBLIC_API_BASE_URL": "http://181.49.225.61:3001",
+  "EXPO_PUBLIC_API_URL": "http://192.168.1.106:3001/api/v1",
+  "EXPO_PUBLIC_API_BASE_URL": "http://192.168.1.106:3001",
   "EXPO_PUBLIC_STAGE": "production"
 }
 ```

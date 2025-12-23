@@ -174,13 +174,15 @@ class Product {
     // Filtro por servicios
     if (filters.esServicio !== undefined || filters.es_servicio !== undefined) {
       const isService = filters.esServicio !== undefined ? filters.esServicio : filters.es_servicio;
-      // Si es_servicio existe en la tabla, usarlo; si no, usar etiquetas como fallback
-      sql += ' AND (p.es_servicio = ? OR (p.es_servicio IS NULL AND p.etiquetas LIKE ?))';
-      params.push(isService ? 1 : 0);
-      if (isService) {
+      const isServiceValue = isService === 'true' || isService === '1' || isService === 1 || isService === true;
+      
+      if (isServiceValue) {
+        // Filtrar solo servicios: es_servicio = 1 O (es_servicio IS NULL Y tiene etiqueta servicio)
+        sql += ' AND (p.es_servicio = 1 OR (p.es_servicio IS NULL AND p.etiquetas LIKE ?))';
         params.push('%"servicio"%');
       } else {
-        sql += ' AND (p.es_servicio IS NULL OR p.etiquetas NOT LIKE ?)';
+        // Excluir servicios: es_servicio = 0 O es_servicio IS NULL (pero sin etiqueta servicio)
+        sql += ' AND (p.es_servicio = 0 OR (p.es_servicio IS NULL AND (p.etiquetas IS NULL OR p.etiquetas NOT LIKE ?)))';
         params.push('%"servicio"%');
       }
     }
@@ -358,7 +360,7 @@ class Product {
     if (includeImages) {
       const rawImages = await this.getImages();
       // Generar URLs completas para las imágenes con validación
-      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
+      const baseUrl = process.env.APP_URL || 'http://192.168.1.106:3001';
       images = rawImages.map(img => {
         // Validar y limpiar URL de imagen
         let imageUrl = img.url_imagen;

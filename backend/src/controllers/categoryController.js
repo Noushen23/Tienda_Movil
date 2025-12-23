@@ -98,7 +98,7 @@ class CategoryController {
       const products = await category.getProducts(filters);
 
       // Formatear productos con imágenes validadas
-      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
+      const baseUrl = process.env.APP_URL || 'http://192.168.1.106:3001';
       const formattedProducts = await Promise.all(
         products.map(async (product) => {
           // Obtener imágenes del producto

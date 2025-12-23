@@ -367,7 +367,7 @@ export default function ProductDetailScreen() {
             isServiceView && { backgroundColor: serviceBackgroundCard }
           ]}>
             <ProductImages 
-              images={product.images || []} 
+              images={product.images || product.imagenes || []} 
               style={[styles.productImages, { height: responsiveDims.imageHeight }]}
             />
           </View>

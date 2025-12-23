@@ -372,8 +372,22 @@ class OrderController {
       const countResult = await query(countSql, countParams);
       const totalOrders = countResult[0]?.total || 0;
       
-      sql += ` GROUP BY o.id ORDER BY o.${orderBy} ${orderDir} LIMIT ? OFFSET ?`;
-      params.push(parseInt(limit), parseInt(offset));
+      // VALIDAR Y CONVERTIR LIMIT Y OFFSET A ENTEROS
+	const limitValue = Math.max(1, Math.min(1000, parseInt(limit) || 50));
+	const offsetValue = Math.max(0, parseInt(offset) || 0); // Minimo 0
+
+
+	// VALIDAR ORDERBY PARA PREVERNIR INYECCION  SQL
+
+
+	const allowedOrderBy = ['fecha_creacion', 'total', 'estado', 'numero_orden'];
+	const cleanOrderBy = String(orderBy || 'fecha_creacion').replace(/[^a-zA-Z0-9_]/g, '');
+	const safeOrderBy = allowedOrderBy.includes(cleanOrderBy) ? cleanOrderBy : 'fecha_creacion';
+	const safeOrderDir = String(orderDir || 'DESC'). toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+	//USAR VALORES DIRECTO EN LUGAR DE PLACEHOLDER PARA LIMIT y OFFSET
+
+	sql +=  ` GROUP BY o.id ORDER BY o.${safeOrderBy} ${safeOrderDir} LIMIT ${limitValue} OFFSET ${offsetValue}`;
 
       const orders = await query(sql, params);
       

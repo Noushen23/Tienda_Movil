@@ -58,7 +58,7 @@ const cleanImageUrl = (url: string): string => {
   if (!url) return url
   
   // Detectar si la URL tiene la base duplicada
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://181.49.225.61:3001'
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.106:3001'
   const duplicatedPattern = `${baseUrl}${baseUrl}`
   
   if (url.startsWith(duplicatedPattern)) {
@@ -185,7 +185,7 @@ export const AdminProductsService = {
               
               // Si la URL no empieza con http, agregar la base URL
               if (imageUrl && !imageUrl.startsWith('http')) {
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://181.49.225.61:3001';
+                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.106:3001';
                 imageUrl = `${baseUrl}${imageUrl}`;
               }
               
@@ -201,7 +201,7 @@ export const AdminProductsService = {
             }
             // Si es string (compatibilidad con estructura anterior)
             if (typeof img === 'string') {
-              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://181.49.225.61:3001';
+              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.106:3001';
               let fullUrl = img.startsWith('http') ? img : `${baseUrl}${img}`;
               
               // Limpiar URL duplicada si existe

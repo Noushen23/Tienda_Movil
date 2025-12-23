@@ -21,6 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.yourcompany.productapp",
+      "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -30,8 +31,10 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
+	"android.permission.INTERNET",
         "com.google.android.c2dm.permission.RECEIVE"
-      ]
+      ],
+	"usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",
@@ -45,7 +48,26 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Esta app necesita acceso a la ubicación para encontrar direcciones cercanas."
         }
-      ]
+        ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "networkSecurityConfig": {
+              "cleartextTrafficPermitted": true,
+              "domainConfig": [
+                {
+                  "domains": ["181.49.225.64"],
+                  "cleartextTrafficPermitted": true
+                }
+              ]
+            }
+          }
+        }
+
+	]
+
     ],
     "experiments": {
       "typedRoutes": true
@@ -57,8 +79,8 @@
       "eas": {
         "projectId": "a40e4d9a-96ff-4ef3-94fc-8c4d2e547dfb"
       },
-      "EXPO_PUBLIC_API_URL": "http://181.49.225.61:3001/api/v1",
-      "EXPO_PUBLIC_API_BASE_URL": "http://181.49.225.61:3001",
+      "EXPO_PUBLIC_API_URL": "http://181.49.225.64:3001/api/v1",
+      "EXPO_PUBLIC_API_BASE_URL": "http://181.49.225.64:3001",
       "EXPO_PUBLIC_STAGE": "production"
     },
     "owner": "angeldacid"

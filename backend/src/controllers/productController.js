@@ -31,36 +31,36 @@ class ProductController {
       let whereConditions = [];
       let queryParams = [];
       
-      // Filtro por productos activos (por defecto solo activos para clientes)
+      // Filtro por productos activos (SIEMPRE con ?)
       if (activo !== undefined) {
         const activoValue = activo === 'true' || activo === '1' || activo === 1 || activo === true;
         whereConditions.push('p.activo = ?');
-        queryParams.push(activoValue ? 1 : 0);
+        queryParams.push(Number(activoValue ? 1 : 0));
       } else {
-        // Por defecto, solo mostrar productos activos si no se especifica
-        whereConditions.push('p.activo = 1');
+        whereConditions.push('p.activo = ?');
+        queryParams.push(1);
       }
       
       // Filtro por categoría
       if (categoriaId) {
         whereConditions.push('p.categoria_id = ?');
-        queryParams.push(categoriaId);
+        queryParams.push(String(categoriaId));
       }
 
       // Filtro por rango de precio
       if (precioMin) {
         whereConditions.push('p.precio >= ?');
-        queryParams.push(parseFloat(precioMin));
+        queryParams.push(Number(parseFloat(precioMin)));
       }
       if (precioMax) {
         whereConditions.push('p.precio <= ?');
-        queryParams.push(parseFloat(precioMax));
+        queryParams.push(Number(parseFloat(precioMax)));
       }
 
       // Filtro por calificación mínima
       if (calificacionMin) {
         whereConditions.push('p.calificacion_promedio >= ?');
-        queryParams.push(parseFloat(calificacionMin));
+        queryParams.push(Number(parseFloat(calificacionMin)));
       }
 
       // Filtro por productos en oferta
@@ -110,7 +110,11 @@ class ProductController {
       }
       
       const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
-      const offset = (parseInt(page) - 1) * parseInt(limit);
+      
+      // Validar y convertir parámetros de paginación a enteros
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 20;
+      const offset = (pageNum - 1) * limitNum;
 
       // Determinar ordenamiento
       let orderBy = 'p.fecha_creacion DESC'; // Por defecto: más recientes
@@ -169,17 +173,6 @@ class ProductController {
           p.fecha_creacion,
           p.fecha_actualizacion,
           c.nombre as categoriaNombre,
-          (
-            SELECT GROUP_CONCAT(
-              CONCAT(
-                '{"id":"', pi.id, '","url":"', pi.url_imagen, '","orden":', pi.orden, ',"es_principal":', pi.es_principal, '}'
-              )
-              ORDER BY pi.orden ASC
-              SEPARATOR ','
-            )
-            FROM imagenes_producto pi
-            WHERE pi.producto_id = p.id
-          ) as imagenes_raw,
           p.etiquetas as etiquetas_raw
         FROM productos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
@@ -188,7 +181,8 @@ class ProductController {
         LIMIT ? OFFSET ?
       `;
       
-      queryParams.push(parseInt(limit), offset);
+      // Asegurar que los parámetros sean del tipo correcto (enteros)
+      queryParams.push(Number(limitNum), Number(offset));
 
       const products = await query(productsQuery, queryParams);
       
@@ -196,66 +190,78 @@ class ProductController {
         throw new Error(`products no es un array: ${typeof products}`);
       }
 
-      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
+      // Obtener imágenes para todos los productos de forma separada (más confiable)
+      const config = require('../config/env');
+      const baseUrl = config.apiBaseUrl || process.env.APP_URL || 'http://192.168.1.106:3001';
       
-      const formattedProducts = products.map(product => {
-        // Parsear imágenes desde GROUP_CONCAT con validación
+      const formattedProducts = await Promise.all(products.map(async (product) => {
+        // Obtener imágenes del producto de forma separada
         let imagenes = [];
-        if (product.imagenes_raw) {
-          try {
-            const imagenesArray = JSON.parse(`[${product.imagenes_raw}]`);
-            imagenes = imagenesArray.map(img => {
-              // Validar y limpiar URL de imagen
-              let imageUrl = img.url;
-              
-              // Si no hay URL, saltar esta imagen
-              if (!imageUrl || typeof imageUrl !== 'string') {
-                console.warn('⚠️ URL de imagen inválida en getProducts:', imageUrl);
-                return null;
-              }
-              
-              // Limpiar URL de espacios y caracteres especiales
-              imageUrl = imageUrl.trim();
-              
-              // Si ya es una URL completa, validarla
-              if (imageUrl.startsWith('http')) {
-                try {
-                  new URL(imageUrl); // Validar URL
-                  return {
-                    id: img.id,
-                    urlImagen: imageUrl,
-                    url: imageUrl, // Para compatibilidad con el frontend
-                    orden: img.orden,
-                    es_principal: Boolean(img.es_principal)
-                  };
-                } catch (urlError) {
-                  console.warn('⚠️ URL de imagen malformada en getProducts:', imageUrl);
-                  return null;
-                }
-              }
-              
-              // Construir URL completa
-              const cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
-              const fullUrl = `${baseUrl}${cleanPath}`;
-              
-              try {
-                new URL(fullUrl); // Validar URL construida
-                return {
-                  id: img.id,
-                  urlImagen: fullUrl,
-                  url: fullUrl, // Para compatibilidad con el frontend
-                  orden: img.orden,
-                  es_principal: Boolean(img.es_principal)
-                };
-              } catch (urlError) {
-                console.warn('⚠️ URL construida malformada en getProducts:', fullUrl);
-                return null;
-              }
-            }).filter(img => img !== null); // Filtrar imágenes inválidas
-          } catch (error) {
-            console.warn('Error parseando imágenes para producto:', product.id, error);
-            imagenes = [];
-          }
+        try {
+          const imagesQuery = `
+            SELECT id, url_imagen, orden, es_principal
+            FROM imagenes_producto
+            WHERE producto_id = ?
+            ORDER BY orden ASC
+          `;
+          const images = await query(imagesQuery, [product.id]);
+          
+          imagenes = images.map(img => {
+            // Obtener URL de imagen desde la BD
+            let imageUrl = img.url_imagen;
+            
+            // Si no hay URL o no es string válido, saltar
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              return null;
+            }
+            
+            // Limpiar URL de espacios
+            imageUrl = imageUrl.trim();
+            
+            // Si está vacía después de trim, saltar
+            if (!imageUrl) {
+              return null;
+            }
+            
+            // Si ya es una URL completa (http:// o https://), usarla directamente
+            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+              return {
+                id: img.id,
+                urlImagen: imageUrl,
+                url: imageUrl, // Para compatibilidad con el frontend
+                orden: img.orden || 0,
+                es_principal: Boolean(img.es_principal)
+              };
+            }
+            
+            // Construir URL completa para rutas relativas
+            // Asegurar que la ruta comience con /
+            let cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+            
+            // Si la ruta no incluye el productId pero debería (formato antiguo)
+            // Intentar corregir la ruta si es necesario
+            // Formato esperado: /uploads/products/{productId}/imagen.jpg
+            // Formato antiguo: /uploads/products/imagen.jpg
+            if (cleanPath.startsWith('/uploads/products/') && !cleanPath.includes(`/${product.id}/`)) {
+              // Extraer el nombre del archivo
+              const fileName = cleanPath.split('/').pop();
+              // Construir la ruta correcta con el productId
+              cleanPath = `/uploads/products/${product.id}/${fileName}`;
+            }
+            
+            const fullUrl = `${baseUrl}${cleanPath}`;
+            
+            return {
+              id: img.id,
+              urlImagen: fullUrl,
+              url: fullUrl, // Para compatibilidad con el frontend
+              orden: img.orden || 0,
+              es_principal: Boolean(img.es_principal)
+            };
+          }).filter(img => img !== null); // Solo filtrar nulls (URLs inválidas)
+        } catch (error) {
+          console.warn('⚠️ Error obteniendo imágenes para producto:', product.id, error.message);
+          imagenes = [];
         }
         
         // Parsear etiquetas
@@ -299,7 +305,7 @@ class ProductController {
           fechaCreacion: product.fecha_creacion,
           fechaActualizacion: product.fecha_actualizacion
         };
-      });
+      }));
 
       // Contar total de productos con los mismos filtros
       let countQuery = 'SELECT COUNT(*) as total FROM productos p WHERE ' + whereClause;
@@ -342,17 +348,6 @@ class ProductController {
         SELECT
           p.*,
           c.nombre as categoriaNombre,
-          (
-            SELECT GROUP_CONCAT(
-              CONCAT(
-                '{"id":"', pi.id, '","url":"', pi.url_imagen, '","orden":', pi.orden, ',"es_principal":', pi.es_principal, '}'
-              )
-              ORDER BY pi.orden ASC
-              SEPARATOR ','
-            )
-            FROM imagenes_producto pi
-            WHERE pi.producto_id = p.id
-          ) as imagenes_raw,
           p.etiquetas as etiquetas_raw
         FROM productos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
@@ -370,34 +365,152 @@ class ProductController {
 
       const product = products[0];
       
-      // Parsear imágenes y etiquetas desde GROUP_CONCAT
+      // Obtener imágenes del producto de forma separada (más confiable)
+      const config = require('../config/env');
+      const baseUrl = config.apiBaseUrl || process.env.APP_URL || 'http://192.168.1.106:3001';
       let imagenes = [];
-      if (product.imagenes_raw) {
-        try {
-          imagenes = JSON.parse(`[${product.imagenes_raw}]`);
-        } catch (error) {
-          console.warn('Error parseando imágenes:', error);
-          imagenes = [];
-        }
+      try {
+        const imagesQuery = `
+          SELECT id, url_imagen, orden, es_principal
+          FROM imagenes_producto
+          WHERE producto_id = ?
+          ORDER BY orden ASC
+        `;
+        const images = await query(imagesQuery, [id]);
+        
+        console.log(`📸 Producto ${id}: ${images.length} imágenes encontradas en BD`);
+        console.log(`📋 URLs en BD:`, images.map(img => img.url_imagen));
+        
+        imagenes = images.map((img) => {
+          // Obtener URL de imagen desde la BD
+          let imageUrl = img.url_imagen;
+          
+          // Si no hay URL o no es string válido, saltar
+          if (!imageUrl || typeof imageUrl !== 'string') {
+            return null;
+          }
+          
+          // Limpiar URL de espacios
+          imageUrl = imageUrl.trim();
+          
+          // Si está vacía después de trim, saltar
+          if (!imageUrl) {
+            return null;
+          }
+          
+          // Si ya es una URL completa (http:// o https://), usarla directamente
+          if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+            return {
+              id: img.id,
+              urlImagen: imageUrl,
+              url: imageUrl, // Para compatibilidad con el frontend
+              url_imagen: imageUrl, // Campo adicional para compatibilidad
+              orden: img.orden || 0,
+              es_principal: Boolean(img.es_principal),
+              esPrincipal: Boolean(img.es_principal) // Campo adicional para compatibilidad
+            };
+          }
+          
+          // Construir URL completa para rutas relativas
+          // Asegurar que la ruta comience con /
+          let cleanPath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+          
+          // Si la ruta no incluye el productId pero debería (formato antiguo)
+          // Intentar corregir la ruta si es necesario
+          // Formato esperado: /uploads/products/{productId}/imagen.jpg
+          // Formato antiguo: /uploads/products/imagen.jpg
+          if (cleanPath.startsWith('/uploads/products/') && !cleanPath.includes(`/${id}/`)) {
+            // Extraer el nombre del archivo
+            const fileName = cleanPath.split('/').pop();
+            // Construir la ruta correcta con el productId
+            cleanPath = `/uploads/products/${id}/${fileName}`;
+            console.log(`🔧 Ruta corregida: ${imageUrl} -> ${cleanPath}`);
+          }
+          
+          const fullUrl = `${baseUrl}${cleanPath}`;
+          
+          return {
+            id: img.id,
+            urlImagen: fullUrl,
+            url: fullUrl, // Para compatibilidad con el frontend
+            url_imagen: fullUrl, // Campo adicional para compatibilidad
+            orden: img.orden || 0,
+            es_principal: Boolean(img.es_principal),
+            esPrincipal: Boolean(img.es_principal) // Campo adicional para compatibilidad
+          };
+        }).filter(img => img !== null); // Solo filtrar nulls (URLs inválidas)
+        
+        console.log(`✅ Producto ${id}: ${imagenes.length} imágenes procesadas y enviadas`);
+        console.log(`📤 URLs finales:`, imagenes.map(img => img.urlImagen));
+      } catch (error) {
+        console.warn('⚠️ Error obteniendo imágenes para producto:', id, error.message);
+        imagenes = [];
       }
       
+      // Parsear etiquetas
       let etiquetas = [];
       if (product.etiquetas_raw) {
-        etiquetas = product.etiquetas_raw.split(',');
+        try {
+          etiquetas = JSON.parse(product.etiquetas_raw);
+        } catch (error) {
+          etiquetas = product.etiquetas_raw.split(',').filter(tag => tag.trim());
+        }
       }
 
-      // Crear instancia del modelo Product para usar sus métodos
-      const Product = require('../models/Product');
-      const productInstance = new Product({
-        ...product,
-        categoria_nombre: product.categoriaNombre,
-        imagenes: imagenes,
-        etiquetas: etiquetas
+      // Obtener estadísticas de reseñas
+      const Review = require('../models/Review');
+      const reviewStats = await Review.getAverageRatingAndCount(id);
+
+      // Formatear producto con las imágenes ya procesadas
+      const formattedProduct = {
+        id: product.id,
+        nombre: product.nombre,
+        title: product.nombre,
+        descripcion: product.descripcion,
+        precio: parseFloat(product.precio),
+        precioOferta: product.precio_oferta ? parseFloat(product.precio_oferta) : null,
+        precioFinal: product.precio_oferta && product.precio_oferta < product.precio 
+          ? parseFloat(product.precio_oferta) 
+          : parseFloat(product.precio),
+        enOferta: Boolean(product.en_oferta),
+        categoriaId: product.categoria_id,
+        categoriaNombre: product.categoriaNombre,
+        stock: product.stock,
+        stockMinimo: product.stock_minimo,
+        stockBajo: product.stock <= product.stock_minimo,
+        activo: Boolean(product.activo),
+        esServicio: Boolean(product.es_servicio),
+        es_servicio: Boolean(product.es_servicio),
+        isActive: Boolean(product.activo),
+        destacado: Boolean(product.destacado),
+        codigoBarras: product.codigo_barras,
+        sku: product.sku,
+        ventasTotales: product.ventas_totales || 0,
+        calificacionPromedio: parseFloat(reviewStats.promedioCalificacion) || 0,
+        totalResenas: reviewStats.totalResenas || 0,
+        imagenes: imagenes, // Usar las imágenes ya procesadas
+        etiquetas: etiquetas,
+        fechaCreacion: product.fecha_creacion,
+        fechaActualizacion: product.fecha_actualizacion,
+        // Estadísticas de reseñas
+        reviewStats: {
+          promedio: parseFloat(reviewStats.promedioCalificacion) || 0,
+          total: reviewStats.totalResenas || 0,
+          distribucion: reviewStats.distribucion || {}
+        }
+      };
+
+      // Agregar headers para evitar caché en desarrollo
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       });
 
-      // Obtener el objeto público con estadísticas de reseñas
-      const formattedProduct = await productInstance.toPublicObject(true, true);
-
+      // Log final para verificar
+      console.log(`📦 Producto ${id} - Total imágenes en respuesta: ${formattedProduct.imagenes.length}`);
+      console.log(`🖼️  Estructura de imágenes:`, JSON.stringify(formattedProduct.imagenes, null, 2));
+      
       res.json({
         success: true,
         message: 'Producto obtenido exitosamente',
@@ -591,7 +704,7 @@ class ProductController {
 
       const products = await query(productQuery, [productId]);
       const product = products[0];
-      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
+      const baseUrl = process.env.APP_URL || 'http://192.168.1.106:3001';
 
       // Parsear imágenes y etiquetas desde GROUP_CONCAT
       let imagenesFormateadas = [];
@@ -918,7 +1031,7 @@ class ProductController {
 
       const products = await query(productQuery, [id]);
       const product = products[0];
-      const baseUrl = process.env.APP_URL || 'http://181.49.225.61:3001';
+      const baseUrl = process.env.APP_URL || 'http://192.168.1.106:3001';
 
       // Parsear imágenes y etiquetas desde GROUP_CONCAT
       let imagenesUpdate = [];

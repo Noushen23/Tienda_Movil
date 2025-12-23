@@ -55,6 +55,19 @@ class SearchController {
 
 
   /**
+   * Obtener historial de búsquedas del usuario
+   * GET /api/v1/search/history?limit=10
+   * Nota: Esta funcionalidad está deshabilitada - siempre devuelve array vacío
+   */
+  async getSearchHistory(req, res) {
+    // Funcionalidad deshabilitada - devolver array vacío
+    return res.status(200).json({
+      success: true,
+      data: []
+    });
+  }
+
+  /**
    * Obtener sugerencias de búsqueda
    * GET /api/v1/search/suggestions?q=term
    */

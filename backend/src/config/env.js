@@ -9,9 +9,9 @@ const config = {
   database: {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 3306,
-    name: process.env.DB_NAME || 'TiendaMovil',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    name: process.env.DB_NAME || 'tiendamovil',
+    user: process.env.DB_USER || 'desarrollador',
+    password: process.env.DB_PASSWORD || 'Bomberos2025#',
   },
   
   // Configuración JWT
@@ -29,20 +29,22 @@ const config = {
       
       const allowedOrigins = [
         'http://localhost:3000', 
-        'http://localhost:8081',
-        'http://localhost:19006', // Expo web
+	'http://localhost:8081', // EXPO WEB
+	'http://localhost:8082', // EXPO web  alternativo 
+        'http://192.168.1.106:8082',
         'http://192.168.3.104:3000', // Admin web específico
         'http://192.168.3.104:3001', // Android emulator
-        'http://181.49.225.61:3000', // Admin web IP pública
-        'http://181.49.225.61:3001', // API IP pública
+        'http://192.168.1.106:3000', // Admin web IP pública
+        'http://192.168.1.106:3001', // API IP pública
+	'https://181.49.225.64:3000', // EXPOS
+	'https://181.49.225.64:3001',
       ];
       
       // Patrones para IPs locales y públicas
       const patterns = [
-        /^http:\/\/192\.168\.\d+\.\d+:3000$/, // Admin Web en IPs locales
-        /^http:\/\/192\.168\.\d+\.\d+:3001$/, // API en IPs locales
-        /^http:\/\/181\.49\.225\.61:\d+$/, // IP pública
-        /^http:\/\/10\.0\.2\.\d+:3001$/, // Android emulator
+        /^http:\/\/192\.168\.\d+\.\d+:\d+$/, // Cualquier IP local 192.168.x.x con cualquier puerto
+        /^http:\/\/181\.49\.225\.\d+:\d+$/, // IP del servidor remoto con cualquier puerto
+        /^http:\/\/10\.0\.2\.\d+:\d+$/, // Android emulator
         /^http:\/\/localhost:\d+$/, // Cualquier puerto localhost
         /^http:\/\/127\.0\.0\.1:\d+$/ // Cualquier puerto 127.0.0.1
       ];
@@ -65,6 +67,7 @@ const config = {
       }
       
       // En producción, rechazar origins no permitidos
+	console.warn(' CORS: Origin no permitido:', origin);
       callback(new Error('No permitido por CORS'));
     },
     credentials: true,
@@ -78,7 +81,7 @@ const config = {
   app: {
     name: process.env.APP_NAME || 'Tienda Móvil',
     version: process.env.APP_VERSION || '1.0.0',
-    url: process.env.APP_URL || process.env.API_BASE_URL || 'http://181.49.225.61:3001'
+    url: process.env.APP_URL || process.env.API_BASE_URL || 'http://192.168.1.106:3001'
   },
   
   // Configuración de email (opcional)
@@ -99,7 +102,7 @@ const config = {
   },
 
   // URL base para construir URLs de imágenes
-  apiBaseUrl: process.env.API_BASE_URL || process.env.APP_URL || 'http://181.49.225.61:3001',
+  apiBaseUrl: process.env.API_BASE_URL || process.env.APP_URL || 'http://192.168.1.106:3001',
   
   // Configuración de rate limiting
   rateLimit: {

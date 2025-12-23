@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Image, FlatList, TouchableOpacity, Dimensions, Modal, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -6,6 +6,7 @@ interface ProductImage {
   id: string;
   url?: string;
   urlImagen?: string;
+  url_imagen?: string;
   orden?: number;
   es_principal?: boolean;
 }
@@ -36,6 +37,16 @@ const ProductImages = ({ images, style }: Props) => {
     }
   };
 
+  // Debug: Log de imágenes recibidas
+  useEffect(() => {
+    console.log('🖼️ ProductImages - Imágenes recibidas:', {
+      total: images?.length || 0,
+      type: Array.isArray(images) ? (typeof images[0]) : 'not array',
+      sample: images?.[0],
+      all: images
+    });
+  }, [images]);
+
   if (!images || images.length === 0) {
     return (
       <View style={[styles.container, style]}>
@@ -49,18 +60,36 @@ const ProductImages = ({ images, style }: Props) => {
 
   // Transformar y filtrar imágenes válidas
   const validImages = images
-    .map((img) => {
+    .map((img, index) => {
       if (typeof img === 'string') {
         const trimmedUrl = img.trim();
-        return isValidImageUrl(trimmedUrl) ? trimmedUrl : null;
+        const isValid = isValidImageUrl(trimmedUrl);
+        if (!isValid) {
+          console.warn(`⚠️ Imagen ${index} (string) inválida:`, trimmedUrl);
+        }
+        return isValid ? trimmedUrl : null;
       } else if (img && typeof img === 'object') {
-        const url = img.url || img.urlImagen; // TODO: Agregar url_imagen
+        // Buscar URL en todos los campos posibles (url, urlImagen, url_imagen)
+        const url = img.url || img.urlImagen || img.url_imagen || '';
         const trimmedUrl = url ? url.trim() : '';
-        return isValidImageUrl(trimmedUrl) ? trimmedUrl : null;
+        const isValid = isValidImageUrl(trimmedUrl);
+        if (!isValid && url) {
+          console.warn(`⚠️ Imagen ${index} (objeto) inválida:`, { url, trimmedUrl, img });
+        }
+        return isValid ? trimmedUrl : null;
       }
+      console.warn(`⚠️ Imagen ${index} tiene formato desconocido:`, typeof img, img);
       return null;
     })
     .filter((img): img is string => img !== null && img !== '');
+  
+  // Debug: Log de imágenes válidas
+  useEffect(() => {
+    console.log('✅ ProductImages - Imágenes válidas después de filtrar:', {
+      total: validImages.length,
+      urls: validImages
+    });
+  }, [validImages.length]);
   
   if (validImages.length === 0) {
     return (

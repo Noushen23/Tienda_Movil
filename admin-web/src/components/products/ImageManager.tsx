@@ -89,7 +89,7 @@ export function ImageManager({
       const response = await AdminProductsService.uploadProductImages(productId, files)
       
       // Construir URLs completas
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://181.49.225.61:3001'
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.106:3001'
       const newImages: ProductImage[] = (response.data || []).map((url: string, index: number) => {
         // Si la URL ya es completa, usarla tal como está
         const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`

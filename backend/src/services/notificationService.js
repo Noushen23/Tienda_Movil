@@ -1,5 +1,6 @@
 const { Expo } = require('expo-server-sdk');
 const { query } = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
 
 class NotificationService {
   constructor() {
@@ -537,11 +538,13 @@ class NotificationService {
    */
   async logNotification(userId, type, title, body, data, success, error = null) {
     try {
+      const notificationId = uuidv4();
       await query(
         `INSERT INTO historial_notificaciones 
         (id, usuario_id, tipo_notificacion, titulo, mensaje, datos_adicionales, exitosa, mensaje_error, fecha_envio)
-        VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
+          notificationId,
           userId,
           type,
           title,

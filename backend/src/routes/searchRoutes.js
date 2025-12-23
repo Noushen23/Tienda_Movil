@@ -14,6 +14,8 @@ router.get('/price-range', searchController.getPriceRange);
 // Obtener sugerencias de búsqueda (público)
 router.get('/suggestions', searchController.getSearchSuggestions);
 
+// Obtener historial de búsquedas del usuario (requiere autenticación)
+router.get('/history', authenticateToken, searchController.getSearchHistory);
 
 module.exports = router;
 
