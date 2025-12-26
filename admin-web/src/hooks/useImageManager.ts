@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AdminProductsService } from '@/lib/admin-products'
 import { ProductImage } from '@/types'
+import { getImageUrl } from '@/lib/config'
 
 interface UseImageManagerProps {
   productId: string
@@ -34,12 +35,10 @@ export function useImageManager({
       
       const response = await AdminProductsService.uploadProductImages(productId, files)
       
-      // Construir URLs completas
-      // 192.168.3.6: Servidor local (API principal)
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001'
+      // Construir URLs completas usando configuración centralizada
       const newImages: ProductImage[] = (response.data || []).map((url: string, index: number) => ({
         id: `upload-${Date.now()}-${index}`,
-        url: url.startsWith('http') ? url : `${baseUrl}${url}`,
+        url: getImageUrl(url),
         orden: images.length + index,
         alt_text: '',
         esPrincipal: false

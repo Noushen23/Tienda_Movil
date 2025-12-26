@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AdminProductsService } from '@/lib/admin-products'
 import { ProductImage } from '@/types'
+import { getImageUrl } from '@/lib/config'
 import { 
   PhotoIcon, 
   TrashIcon, 
@@ -88,16 +89,10 @@ export function ImageManager({
       
       const response = await AdminProductsService.uploadProductImages(productId, files)
       
-      // Construir URLs completas
-      // 192.168.3.6: Servidor local (API principal)
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001'
-      const newImages: ProductImage[] = (response.data || []).map((url: string, index: number) => {
-        // Si la URL ya es completa, usarla tal como está
-        const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`
-        
-        return {
-          id: `upload-${Date.now()}-${index}`,
-          url: fullUrl,
+      // Construir URLs completas usando configuración centralizada
+      const newImages: ProductImage[] = (response.data || []).map((url: string, index: number) => ({
+        id: `upload-${Date.now()}-${index}`,
+        url: getImageUrl(url),
           orden: images.length + index,
           alt_text: '',
           esPrincipal: false

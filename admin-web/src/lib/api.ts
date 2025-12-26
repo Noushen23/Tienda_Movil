@@ -1,8 +1,8 @@
 import axios, { AxiosError, AxiosResponse } from 'axios'
+import { getApiUrl } from './config'
 
-// 192.168.3.6: Servidor local (API principal)
-// 181.49.225.64: IP pública (producción)
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001/api/v1'
+// Usar configuración centralizada
+const API_URL = getApiUrl()
 
 export const api = axios.create({
   baseURL: API_URL,

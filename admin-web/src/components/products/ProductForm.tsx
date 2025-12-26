@@ -7,6 +7,7 @@ import { AdminCategoriesService } from '@/lib/admin-categories'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CreateProductRequest, ProductImage } from '@/types'
 import { ImageManager } from './ImageManager'
+import { getImageUrl } from '@/lib/config'
 
 interface ProductFormProps {
   product?: AdminProduct
@@ -108,12 +109,8 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         
         // Actualizar el estado con las nuevas URLs de imagen
         const newImageUrls = response.data || []
-        // Construir URLs completas para las nuevas imágenes
-        // 192.168.3.6: Servidor local (API principal)
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001'
-        const fullImageUrls = newImageUrls.map((url: string) => 
-          url.startsWith('http') ? url : `${baseUrl}${url}`
-        )
+        // Construir URLs completas usando configuración centralizada
+        const fullImageUrls = newImageUrls.map((url: string) => getImageUrl(url))
         
         setFormData(prev => ({
           ...prev,

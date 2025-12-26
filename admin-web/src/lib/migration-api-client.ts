@@ -1,9 +1,9 @@
 import axios, { AxiosError, AxiosResponse } from 'axios'
+import { getMigrationApiUrl } from './config'
 
 // Cliente API específico para migración de órdenes (ApiPedidoVenta)
-// 192.168.3.6: Servidor local
-// 192.168.3.104: Base de datos TNS (si la migración se hace desde Apimaterial)
-const MIGRATION_API_URL = process.env.NEXT_PUBLIC_MIGRATION_API_URL || 'http://192.168.3.6:51250/api'
+// Usar configuración centralizada
+const MIGRATION_API_URL = getMigrationApiUrl()
 
 export const migrationApiClient = axios.create({
   baseURL: MIGRATION_API_URL,

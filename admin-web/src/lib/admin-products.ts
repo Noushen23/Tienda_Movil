@@ -1,5 +1,6 @@
 import { api } from './api'
 import { Product, CreateProductRequest, ProductImage, Gender, Size } from '@/types'
+import { getApiBaseUrl, getImageUrl } from './config'
 
 // Tipos básicos para el servicio de productos
 export interface AdminProduct extends Omit<Product, 'gender' | 'sizes'> {
@@ -57,9 +58,8 @@ const validateProductData = (data: CreateProductRequest): void => {
 const cleanImageUrl = (url: string): string => {
   if (!url) return url
   
-  // Detectar si la URL tiene la base duplicada
-  // 192.168.3.6: Servidor local (API principal)
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001'
+  // Usar configuración centralizada
+  const baseUrl = getApiBaseUrl()
   const duplicatedPattern = `${baseUrl}${baseUrl}`
   
   if (url.startsWith(duplicatedPattern)) {
@@ -186,9 +186,7 @@ export const AdminProductsService = {
               
               // Si la URL no empieza con http, agregar la base URL
               if (imageUrl && !imageUrl.startsWith('http')) {
-                // 192.168.3.6: Servidor local (API principal)
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001';
-                imageUrl = `${baseUrl}${imageUrl}`;
+                imageUrl = getImageUrl(imageUrl);
               }
               
               return {
@@ -203,9 +201,7 @@ export const AdminProductsService = {
             }
             // Si es string (compatibilidad con estructura anterior)
             if (typeof img === 'string') {
-              // 192.168.3.6: Servidor local (API principal)
-              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001';
-              let fullUrl = img.startsWith('http') ? img : `${baseUrl}${img}`;
+              let fullUrl = img.startsWith('http') ? img : getImageUrl(img);
               
               // Limpiar URL duplicada si existe
               fullUrl = cleanImageUrl(fullUrl);

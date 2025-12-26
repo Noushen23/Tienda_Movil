@@ -25,10 +25,11 @@ export interface MigrationResponse {
   message?: string;
 }
 
+import { getApiBaseUrl } from '@/lib/config'
+
 // Servicio para migración de pedidos
 class OrderMigrationService {
-  // 192.168.3.6: Servidor local (API principal)
-  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.3.6:3001';
+  private baseUrl = getApiBaseUrl();
 
   async getMigrationDetails(orderId: string): Promise<MigrationResponse> {
     const response = await fetch(`${this.baseUrl}/api/orders/${orderId}/detail`);
